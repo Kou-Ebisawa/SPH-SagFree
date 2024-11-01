@@ -1,0 +1,202 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="ImGUI">
+      <UniqueIdentifier>{dca7bcf6-2105-4c47-a0be-a40198baf635}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Main">
+      <UniqueIdentifier>{63685a47-76f7-48a0-b92c-f15cbf51ae6f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Utilities">
+      <UniqueIdentifier>{9b6d18cd-c748-43fd-afb3-88f6d13482e3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scene">
+      <UniqueIdentifier>{3f42c8f0-f3ea-480d-b5ed-b4b0185d911b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Mesh">
+      <UniqueIdentifier>{b4edb7a4-289e-4ad9-a2d8-847450c45c3c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="SPH%28CUDA%29">
+      <UniqueIdentifier>{43743886-0d52-47bd-9ef2-c626202fd29d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="SPH">
+      <UniqueIdentifier>{a3e3cccc-7fc3-4dd5-84e2-d44d77c45044}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shader">
+      <UniqueIdentifier>{6caefc7d-877d-4435-b8e5-3de42ddbcbc3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="rx%28inc%29">
+      <UniqueIdentifier>{9fb04ec2-30a3-4c1a-b12e-daafd301520d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="shaders">
+      <UniqueIdentifier>{1210cd21-233a-47bd-988d-5fc77aa5f347}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <Filter>Main</Filter>
+    </ClCompile>
+    <ClCompile Include="imgui\imgui.cpp">
+      <Filter>ImGUI</Filter>
+    </ClCompile>
+    <ClCompile Include="imgui\imgui_demo.cpp">
+      <Filter>ImGUI</Filter>
+    </ClCompile>
+    <ClCompile Include="imgui\imgui_draw.cpp">
+      <Filter>ImGUI</Filter>
+    </ClCompile>
+    <ClCompile Include="imgui\imgui_tables.cpp">
+      <Filter>ImGUI</Filter>
+    </ClCompile>
+    <ClCompile Include="imgui\imgui_widgets.cpp">
+      <Filter>ImGUI</Filter>
+    </ClCompile>
+    <ClCompile Include="imgui\imgui_impl_glfw.cpp">
+      <Filter>ImGUI</Filter>
+    </ClCompile>
+    <ClCompile Include="scene.cpp">
+      <Filter>Main</Filter>
+    </ClCompile>
+    <ClCompile Include="imgui\imgui_impl_opengl2.cpp">
+      <Filter>ImGUI</Filter>
+    </ClCompile>
+    <ClCompile Include="imgui\imgui_impl_opengl3.cpp">
+      <Filter>ImGUI</Filter>
+    </ClCompile>
+    <ClCompile Include="sph.cpp">
+      <Filter>SPH</Filter>
+    </ClCompile>
+    <ClCompile Include="pbd.cpp">
+      <Filter>Main</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="utils.h">
+      <Filter>Utilities</Filter>
+    </ClInclude>
+    <ClInclude Include="imgui\imconfig.h">
+      <Filter>ImGUI</Filter>
+    </ClInclude>
+    <ClInclude Include="imgui\imgui.h">
+      <Filter>ImGUI</Filter>
+    </ClInclude>
+    <ClInclude Include="imgui\imgui_internal.h">
+      <Filter>ImGUI</Filter>
+    </ClInclude>
+    <ClInclude Include="imgui\imgui_impl_glfw.h">
+      <Filter>ImGUI</Filter>
+    </ClInclude>
+    <ClInclude Include="scene.h">
+      <Filter>Main</Filter>
+    </ClInclude>
+    <ClInclude Include="imgui\imgui_impl_opengl2.h">
+      <Filter>ImGUI</Filter>
+    </ClInclude>
+    <ClInclude Include="imgui\imgui_impl_opengl3.h">
+      <Filter>ImGUI</Filter>
+    </ClInclude>
+    <ClInclude Include="nnsearch.h">
+      <Filter>SPH</Filter>
+    </ClInclude>
+    <ClInclude Include="particle_on_surf.h">
+      <Filter>SPH</Filter>
+    </ClInclude>
+    <ClInclude Include="sph.h">
+      <Filter>SPH</Filter>
+    </ClInclude>
+    <ClInclude Include="solid.h">
+      <Filter>SPH</Filter>
+    </ClInclude>
+    <ClInclude Include="pdist.h">
+      <Filter>SPH</Filter>
+    </ClInclude>
+    <ClInclude Include="kernel.h">
+      <Filter>SPH</Filter>
+    </ClInclude>
+    <ClInclude Include="config.h">
+      <Filter>Main</Filter>
+    </ClInclude>
+    <ClInclude Include="gldraw.h">
+      <Filter>Main</Filter>
+    </ClInclude>
+    <ClInclude Include="cuda_utils.h">
+      <Filter>SPH%28CUDA%29</Filter>
+    </ClInclude>
+    <ClInclude Include="sph.cuh">
+      <Filter>SPH%28CUDA%29</Filter>
+    </ClInclude>
+    <ClInclude Include="mc.h">
+      <Filter>Mesh</Filter>
+    </ClInclude>
+    <ClInclude Include="mc_tables.h">
+      <Filter>Mesh</Filter>
+    </ClInclude>
+    <ClInclude Include="pbd.h">
+      <Filter>Main</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\rx_shaders.h">
+      <Filter>rx%28inc%29</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="bin\sph_scene_1.cfg">
+      <Filter>Scene</Filter>
+    </None>
+    <None Include="bin\sph_scene_2.cfg">
+      <Filter>Scene</Filter>
+    </None>
+    <None Include="bin\sph_scene_3.cfg">
+      <Filter>Scene</Filter>
+    </None>
+    <None Include="bin\sph_scene_4.cfg">
+      <Filter>Scene</Filter>
+    </None>
+    <None Include="bin\sph_scene_10.cfg">
+      <Filter>Scene</Filter>
+    </None>
+    <None Include="bin\sph_scene_11.cfg">
+      <Filter>Scene</Filter>
+    </None>
+    <None Include="bin\sph_scene_12.cfg">
+      <Filter>Scene</Filter>
+    </None>
+    <None Include="bin\sph_scene_13.cfg">
+      <Filter>Scene</Filter>
+    </None>
+    <None Include="bin\shaders\floor.fp">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="bin\shaders\floor.vp">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="bin\shaders\pointsprite.fp">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="bin\shaders\pointsprite.vp">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="bin\shaders\shading.fp">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="bin\shaders\shading.vp">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="..\CUDA\glfw_CUDASPH_VS2022_11.4\glfw_wcsph_gpu\bin\shaders\hair_shading.fp">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="..\CUDA\glfw_CUDASPH_VS2022_11.4\glfw_wcsph_gpu\bin\shaders\hair_shading.vp">
+      <Filter>Shader</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="sph.cu">
+      <Filter>SPH%28CUDA%29</Filter>
+    </CudaCompile>
+    <CudaCompile Include="sph_kernel.cu">
+      <Filter>SPH%28CUDA%29</Filter>
+    </CudaCompile>
+    <CudaCompile Include="cuda_utils.cu">
+      <Filter>SPH%28CUDA%29</Filter>
+    </CudaCompile>
+  </ItemGroup>
+</Project>
