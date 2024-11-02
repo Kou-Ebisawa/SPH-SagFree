@@ -339,25 +339,51 @@ void CuReorderDataAndFindCellStart(Cell cell, float* dpos, float* dvel, uint n)
 }
 
 //海老沢追加-----------------------------------------------------------------------------------------------------
-//XPBDの制約
+//XPBDの伸び・せん断，曲げ・ねじれ制約の処理
+//dpos:位置
+//dmas:質量
+//dlen:基準長
+//dkss:伸び剛性
+//dkbt:曲げ剛性
+//dquat:姿勢(四元数)
+//domega:基準ダルボーベクトル
+//dlamb_ss:XPBDの伸び・せん断制約に用いるλ
+//dlamb_bt:XPBDの曲げ・ねじれ制約に用いるλ
+//dfix:固定点(毛髪の開始点)を示す配列(1なら固定点,0ならそれ以外)
+//dt:タイムステップ
+//n:粒子数
+//iter:反復回数
 void CuXPBDConstraint(float* dpos,float* dmas, float* dlen, float* dkss,float* dkbt, float* dquat, float* domega, float* dlamb_ss,float* dlamb_bt,int* dfix, float dt,int n,int iter) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
-	//λを0にする
+	//XPBDの処理のために，λを0にする
 	CxSetLambdaZero << <grid, block >> > (dlamb_ss,dlamb_bt, n);
 	cudaThreadSynchronize();
 	//伸び制約の反復
 	for (int i = 0; i < iter; i++) {
+		//全ての制約を同時に実行すると，衝突が発生するため，奇数と偶数に分けて実行する
+		//偶数番目のidを実行
 		CxStrechingShearConstraint << <grid, block >> > (dpos, dmas, dlen, dkss, dquat, dlamb_ss, dfix, dt, n, 0, i);
 		CxBendTwistConstraint << <grid, block >> > (dquat, domega, dkbt, dlamb_bt,dlen, dfix, dt, n,0,i);
-		cudaThreadSynchronize();//反復ごとに同期
+		//念のため，半分処理した時点で同期を挟む
+		cudaThreadSynchronize();
+		//奇数番目のidを実行
 		CxStrechingShearConstraint << <grid, block >> > (dpos, dmas, dlen, dkss, dquat, dlamb_ss, dfix, dt, n, 1, i);
 		CxBendTwistConstraint << <grid, block >> > (dquat, domega, dkbt, dlamb_bt,dlen, dfix, dt, n, 1,i);
+		//念のため，同期を行う
 		cudaThreadSynchronize();
 	}
 }
 
 //衝突制約
+//ここでは，一番実装が容易な球との衝突だけを扱う
+//dpos:位置
+//dvel:速度
+//dfix:固定点(毛髪の開始点)を示す配列(1なら固定点,0ならそれ以外)
+//center:毛髪との衝突を扱いたい球の中心
+//rad:毛髪との衝突を扱いたい球の半径
+//dt:タイムステップ
+//n:粒子数
 void CuCollisionConstraint(float* dpos, float* dvel, int* dfix, float3 center, float rad, float dt, int n) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
@@ -367,6 +393,13 @@ void CuCollisionConstraint(float* dpos, float* dvel, int* dfix, float3 center, f
 
 //海老沢追加
 //時間積分
+//位置ベース法に従い，現在の位置と位置修正後の位置から速度を求め，位置を更新
+//dpos:位置(位置修正後)
+//dcurpos:前ステップの位置(位置修正前)
+//dvel:速度
+//dt:タイムステップ
+//n:粒子数
+//vel_control:一定以下の速度の場合に切り捨てを行うかどうかを指定
 void CuIntegrate(float* dpos,float* dcurpos,float* dvel,float dt,int n,bool vel_control) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
@@ -375,7 +408,8 @@ void CuIntegrate(float* dpos,float* dcurpos,float* dvel,float dt,int n,bool vel_
 }
 
 //海老沢追加
-//風をイメージした外力計算
+//風や重力をイメージした外力計算
+//デバック用
 void CuCalExternalForces(float* dpos,float*dvel,float* dmass,int* dfix,float3 gravity, float3 wind, float dt, int n) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
@@ -384,7 +418,8 @@ void CuCalExternalForces(float* dpos,float*dvel,float* dmass,int* dfix,float3 gr
 }
 
 //海老沢追加
-//位置ベース法(拡張でない
+//位置ベース法(拡張位置ベース法でなく，伸び・せん断制約のみ)
+//デバック用
 void CuPBDStretchingConstraint(float* dpos, float* dmas, float* dlen, float* dkss, float* dquat, int* dfix, int n, int iter) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
@@ -404,33 +439,36 @@ void CuPrint3Dfloat(float* dpos,float* dvel,float* dacc,int n) {
 }
 
 //接線の更新
+//kajiya-kayモデルでのレンダリングに利用
+//dpos:位置
+//dtang:エッジごとの接線
+//dfix:固定点(毛髪の開始点)を示す配列(1なら固定点,0ならそれ以外)
+//n:粒子数
 void CuTangUpdate(float* dpos, float* dtang, int* dfix, int n) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
 	CxTangUpdate << <grid, block >> > (dpos, dtang, dfix, n);
 	cudaThreadSynchronize();
 }
-//重力をかける
-void CuOnlyGravity(float* dvel, float* dmass, int* dfix,float dt, int n) {
-	dim3 block, grid;
-	CuCalGridN(n, block, grid);
-	CxOnlyGravity << <grid, block >> > (dvel, dmass, dfix,dt, n);
-	cudaThreadSynchronize();
-}
 
-//角速度を0に設定
+//角速度など初期からデバイスメモリに設定をしているものの初期値を0に設定
+//dangvel:角速度
+//dfss:エッジごとにかかる力(GlobalForceStepで求める)
+//dpbf_lambda:密度制約の計算過程に必要なλをメモリ確保
+//n:粒子数
 void CuSetParametersZero(float* dangvel, float* dfss, float* dpbf_lambda, int n) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
 	CxSetParametersZero << <grid, block >> > (dangvel,dfss,dpbf_lambda, n);
-	/*cudaError_t err = cudaGetLastError();
-	if (err != cudaSuccess) {
-		printf("CUDA error: %s\n", cudaGetErrorString(err));
-	}*/
 	cudaThreadSynchronize();
 }
 
 //角加速度の更新
+//dangvel:角速度
+//dquat:姿勢(四元数)
+//dfix:固定点(毛髪の開始点)を示す配列(1なら固定点,0ならそれ以外)
+//dt:タイムステップ
+//n:粒子数
 void CuAngVelUpdate(float* dangvel, float* dquat,int* dfix,float dt, int n) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
@@ -439,6 +477,13 @@ void CuAngVelUpdate(float* dangvel, float* dquat,int* dfix,float dt, int n) {
 }
 
 //各加速度の時間積分
+//dangvel:角速度
+//dcurquat:前ステップの姿勢(位置修正前)
+//dquat:現在の姿勢(位置修正後)
+//dfix:固定点(毛髪の開始点)を示す配列(1なら固定点,0ならそれ以外)
+//dt:タイムステップ
+//n:粒子数
+//vel_control:角速度が一定以下なら切り捨てを行うかどうかを判定
 void CuAngVelIntegrate(float* dangvel,float* dcurquat, float* dquat,int* dfix,float dt, int n,bool vel_control) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
@@ -446,15 +491,11 @@ void CuAngVelIntegrate(float* dangvel,float* dcurquat, float* dquat,int* dfix,fl
 	cudaThreadSynchronize();
 }
 
-//四元数の設定
-void CuQuatSet(float* dcurquat, float* dquat, int* dfix, int n) {
-	dim3 block, grid;
-	CuCalGridN(n, block, grid);
-	CxQuatSet << <grid, block >> > (dcurquat, dquat, dfix, n);
-	cudaThreadSynchronize();
-}
-
-//基準となる姿勢の設定
+//基準となる密度の設定
+//dpos:位置
+//dRestDens:粒子ごとに設定する基準密度
+//dvol:体積
+//n:粒子数
 void CuRestDensSet(float* dpos,float* dRestDens, float* dvol, int n) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
@@ -463,6 +504,7 @@ void CuRestDensSet(float* dpos,float* dRestDens, float* dvol, int n) {
 }
 
 //一律の基準となる密度の設定
+//デバック用
 void CuRestTotalDens(float* drestdens,float dens, int n) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
@@ -471,6 +513,12 @@ void CuRestTotalDens(float* drestdens,float dens, int n) {
 }
 
 //グローバルフォースステップ
+//重力などによりエッジにかかる力を求める
+//dfss:エッジごとにかかる力
+//dmass:質量
+//last_index:毛髪ごとの最後の粒子のインデックスを格納
+//gravity:重力
+//num_elastic:ここでは，毛髪ごとに並列計算するため，毛髪の数を渡す
 void CuGlobalForceStep(float* dfss,float* dmass, int* last_index, float3 gravity, int num_elastic) {
 	dim3 block, grid;
 	CuCalGridN(num_elastic, block, grid);
@@ -479,6 +527,14 @@ void CuGlobalForceStep(float* dfss,float* dmass, int* last_index, float3 gravity
 }
 
 //ローカルフォースステップ
+//グローバルフォースステップで求めたエッジごとの力から，変形を防ぐための基準長や姿勢を求める
+//dpos:位置
+//dlen:基準長
+//dquat:姿勢
+//dcurquat:前ステップの姿勢(シミュレーション開始前のcurquatはquatと一致するため，更新後の値を代入)
+//dkss:伸び剛性
+//dfix:固定点(毛髪の開始点)を示す配列(1なら固定点,0ならそれ以外)
+//n:粒子数(エッジごとに並列計算)
 void CuLocalForceStep(float* dpos, float* dlen, float* dquat,float* dcurquat, float* dkss, float* dfss, int* dfix, int n) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
@@ -486,15 +542,32 @@ void CuLocalForceStep(float* dpos, float* dlen, float* dquat,float* dcurquat, fl
 	cudaThreadSynchronize();
 }
 
-//グローバルトルクステップ(Videoで使っていたような方法で逐次的に解く)
-void CuVideoGlobalTorqueStep(float* dpos, float* dquat, float* domega, float* dlen, float* dkss, float* dkbt, int* dfix, int* dlast_index, int num_elastic) {
+//グローバルトルクステップ
+//毛髪ごとにフォースステップで生じたトルクを打ち消す基準ダルボーベクトルを求める
+//dpos:位置
+//dquat:姿勢
+//domega:基準ダルボーベクトル
+//dlen:基準長
+//dkss:伸び剛性
+//dkbt:曲げ剛性
+//dfix:固定点(毛髪の開始点)を示す配列(1なら固定点,0ならそれ以外)
+//last_index:毛髪ごとの最後の粒子のインデックスを格納
+//num_elastic:ここでは，毛髪ごとに並列計算するため，毛髪の数を渡す
+void CuGlobalTorqueStep(float* dpos, float* dquat, float* domega, float* dlen, float* dkss, float* dkbt, int* dfix, int* dlast_index, int num_elastic) {
 	dim3 block, grid;
 	CuCalGridN(num_elastic, block, grid);
-	CxVideoGlobalTorqueStep << <grid, block >> > (dpos, dquat, domega, dlen, dkss, dkbt, dfix, dlast_index, num_elastic);
+	CxGlobalTorqueStep << <grid, block >> > (dpos, dquat, domega, dlen, dkss, dkbt, dfix, dlast_index, num_elastic);
 	cudaThreadSynchronize();
 }
 
 //ローカルトルクステップ
+//基準ダルボーベクトルを適切な形で正規化する
+//dquat:姿勢
+//domega:基準ダルボーベクトル
+//deln:基準長
+//dkbt:曲げ剛性
+//dfix:固定点(毛髪の開始点)を示す配列(1なら固定点,0ならそれ以外)
+//n:粒子数(基準ダルボーベクトルごとに並列計算)
 void CuLocalTorqueStep(float* dquat,float* domega, float* dlen, float* dkbt, int* dfix, int n) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
@@ -503,6 +576,12 @@ void CuLocalTorqueStep(float* dquat,float* domega, float* dlen, float* dkbt, int
 }
 
 //密度制約の計算
+//pos:位置
+//ddens:現在の密度
+//drestdens:基準密度
+//dpbf_lambda:制約に用いるλ
+//dvol:体積
+//n:粒子数
 void CuPbfConstraint(float* dpos,float* ddens,float* drestdens,float*dpbf_lambda,float*dvol,int n) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
@@ -514,6 +593,10 @@ void CuPbfConstraint(float* dpos,float* ddens,float* drestdens,float*dpbf_lambda
 }
 
 //PBFで解く場合の外力項の計算
+//dacc:加速度
+//datt:粒子属性(0で流体,1で境界)
+//power:風などの力
+//n:粒子数
 void CuPbfExternalForces(float* dacc, int* datt, float3 power, int n) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);

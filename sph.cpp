@@ -155,21 +155,6 @@ void SPH::Initialize(const SceneParameter &env,int num_elastic)
 
 	cout << "effective_radius:" << h << endl;
 
-	//海老沢追加
-	//パラメータを中から無理やり変える-----------------------------------------------------
-	//float n = 50.0f;
-	//float d = 1.293f;
-	//r = 2.0e-3f; // 3.0 or 2.0
-	//float v = 4.0f / 3.0f * PI_F * r * r * r;
-	//float m = v * d;
-	//h = powf(n * v / (4.0f / 3.0f * PI_F), 1.0f / 3.0f);
-	////m_params.effective_radius = h;      // influence radius [m]
-	//m_params.h = h;
-	//m_params.dens = d;  // rest density [kg/m3]
-	////m_params.particle_radius = r; // particle radius [m]
-	//m_params.mass = m;   // particle mass [kg]
-	//-------------------------------------------------------------------------------------
-
 	// カーネル関数の定数
 	m_params.aw = KernelCoefPoly6(h, 3, 1);
 	m_params.ag = KernelCoefSpiky(h, 3, 2);
@@ -234,23 +219,11 @@ void SPH::Allocate(int max_particles)
 	unsigned int mem_float_size = sizeof(float)*float_size;
 
 	//海老沢追加
-	//unsigned int edge_size = (m_perParticle-1)*m_numElastic;
-	//unsigned int edge_vec_size = (m_perParticle - 1) * m_numElastic * DIM;
 	unsigned int quat_size = m_max_particles * QUAT;
-	//unsigned int darboux_size = (m_perParticle - 2) * m_numElastic * QUAT;
-
-	//海老沢追加 メモリの確保
-	//unsigned int mem_edge_size = sizeof(float) * edge_size;
-	//unsigned int mem_edge_vec_size = sizeof(float) * edge_vec_size;
 	unsigned int mem_quat_size = sizeof(float) * quat_size;
-	//unsigned int mem_darboux_size = sizeof(float) * darboux_size;
 
 	// 境界粒子設定
 	//SetBoundaryParticles(true);
-
-	//海老沢追加
-	//描画用にvaoの作成
-	//createVAO(m_vao_pos);
 
 	// GPUメモリ確保
 	createVBO(m_vbo_pos, mem_vec_size);
@@ -274,21 +247,21 @@ void SPH::Allocate(int max_particles)
 	CuAllocateArray((void**)&m_d_vol, m_max_particles * sizeof(float));
 
 	//海老沢追加
-	CuAllocateArray((void**)&m_d_mass, mem_float_size);//質量
-	CuAllocateArray((void**)&m_d_rest_length, mem_float_size);//基準長
-	CuAllocateArray((void**)&m_d_kss, mem_float_size);//伸び剛性
-	CuAllocateArray((void**)&m_d_kbt, mem_float_size);//曲げ剛性
-	CuAllocateArray((void**)&m_d_quat, mem_quat_size);//四元数
-	CuAllocateArray((void**)&m_d_rest_darboux, mem_quat_size);//基準ダルボーベクトル
-	CuAllocateArray((void**)&m_d_lambda_ss, mem_vec_size);//XPBDのSSのλ
-	CuAllocateArray((void**)&m_d_lambda_bt, mem_quat_size);//XPBDのBTのλ
-	CuAllocateArray((void**)&m_d_fix, m_max_particles * sizeof(int));//固定点かどうか
-	CuAllocateArray((void**)&m_d_curpos, mem_vec_size);//前ステップの位置
-	CuAllocateArray((void**)&m_d_curquat, mem_quat_size);//前ステップの位置
-	CuAllocateArray((void**)&m_d_angvel, mem_vec_size);//回転速度
-	CuAllocateArray((void**)&m_d_rest_density, mem_float_size);
-	CuAllocateArray((void**)&m_d_fss, mem_vec_size);//エッジにかかる力
-	CuAllocateArray((void**)&m_d_last_index, m_numElastic * sizeof(int));//毛髪の最後のインデックスを格納
+	CuAllocateArray((void**)&m_d_mass, mem_float_size);						//質量
+	CuAllocateArray((void**)&m_d_rest_length, mem_float_size);				//基準長
+	CuAllocateArray((void**)&m_d_kss, mem_float_size);						//伸び剛性
+	CuAllocateArray((void**)&m_d_kbt, mem_float_size);						//曲げ剛性
+	CuAllocateArray((void**)&m_d_quat, mem_quat_size);						//四元数
+	CuAllocateArray((void**)&m_d_rest_darboux, mem_quat_size);				//基準ダルボーベクトル
+	CuAllocateArray((void**)&m_d_lambda_ss, mem_vec_size);					//XPBDのSSのλ
+	CuAllocateArray((void**)&m_d_lambda_bt, mem_quat_size);					//XPBDのBTのλ
+	CuAllocateArray((void**)&m_d_fix, m_max_particles * sizeof(int));		//固定点かどうか
+	CuAllocateArray((void**)&m_d_curpos, mem_vec_size);						//前ステップの位置
+	CuAllocateArray((void**)&m_d_curquat, mem_quat_size);					//前ステップの位置
+	CuAllocateArray((void**)&m_d_angvel, mem_vec_size);						//回転速度
+	CuAllocateArray((void**)&m_d_rest_density, mem_float_size);				//個々に初期密度を設定
+	CuAllocateArray((void**)&m_d_fss, mem_vec_size);						//エッジにかかる力
+	CuAllocateArray((void**)&m_d_last_index, m_numElastic * sizeof(int));	//毛髪の最後のインデックスを格納
 	CuAllocateArray((void**)&m_d_pbf_lambda, mem_float_size);
 
 
@@ -323,17 +296,10 @@ void SPH::Allocate(int max_particles)
 void SPH::SagFree(void) {
 	float* pos = (float*)CuMapGLBufferObject(&m_cgr_pos);
 
-	//cout << "m_num_particles: " << m_num_particles << endl;
-
 	CuGlobalForceStep(m_d_fss, m_d_mass, m_d_last_index, make_float3(0, -9.81, 0), m_numElastic);
 	CuLocalForceStep(pos, m_d_rest_length, m_d_quat,m_d_curquat, m_d_kss, m_d_fss, m_d_fix, m_num_particles);
-	//CuGlobalTorqueStep(pos, m_d_quat, m_d_rest_darboux, m_d_rest_length, m_d_kss, m_d_kbt, m_d_fix, m_d_last_index, m_num_particles);//粒子数に変更中
-	CuVideoGlobalTorqueStep(pos, m_d_quat, m_d_rest_darboux, m_d_rest_length, m_d_kss, m_d_kbt, m_d_fix, m_d_last_index, m_numElastic);
+	CuGlobalTorqueStep(pos, m_d_quat, m_d_rest_darboux, m_d_rest_length, m_d_kss, m_d_kbt, m_d_fix, m_d_last_index, m_numElastic);
 	CuLocalTorqueStep(m_d_quat, m_d_rest_darboux, m_d_rest_length, m_d_kbt, m_d_fix, m_num_particles);
-
-	/*float dt = 100;
-	int iter = 1;
-	CuXPBDConstraint(pos, m_d_mass, m_d_rest_length, m_d_kss, m_d_kbt, m_d_quat, m_d_rest_darboux, m_d_lambda_ss, m_d_lambda_bt, m_d_fix, dt, m_num_particles, iter);*/
 
 	// GPUメモリ領域をアンマップ
 	CuUnmapGLBufferObject(m_cgr_pos);
@@ -513,9 +479,7 @@ bool SPH::Update(float dt, int step)
 	}
 
 	//RXTIMER("force calculation");
-	//海老沢追加---------------------------------------------------------------------------------------------------------------------
-	//CuPrint3Dfloat(pos, m_d_vel, m_d_acc, m_num_particles);
-	
+	//海老沢追加---------------------------------------------------------------------------------------------------------------------	
 	//角加速度の更新
 	CuAngVelUpdate(m_d_angvel, m_d_quat,m_d_fix, dt, m_num_particles);
 
@@ -809,7 +773,7 @@ void SPH::SetXPBD_Params(int max_particles, const void* mass, const void* length
 	SetArrayToDevice(E_QUAT, quat, 0, max_particles);
 	SetArrayToDevice(E_DARBOUX, darboux, 0, max_particles);
 	SetArrayToDevice(P_FIX, fix, 0, max_particles);
-	SetArrayToDevice(P_LAST_IND, last_index, 0, m_numElastic);//別の配列の長さを指定
+	SetArrayToDevice(P_LAST_IND, last_index, 0, m_numElastic);//別の配列の長さを指定,個々の毛髪の最後の粒子を保存
 	return;
 }
 

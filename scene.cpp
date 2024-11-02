@@ -19,12 +19,12 @@
 
 // テクスチャ・画像
 #include "rx_bitmap.h"
-#include "rx_texture.h"//SagFree追加
+#include "rx_texture.h"
 
 // OpenGL描画関連
 #include "gldraw.h"
 #include "rx_trackball.h"	// 視点変更用トラックボールクラス
-#include "rx_shaders.h" //SagFree追加
+#include "rx_shaders.h" 
 
 // SPHによる流体シミュレーション
 #include "sph.h"
@@ -65,7 +65,6 @@ float g_bnd_scale = 1.0f;
 
 rxPolygons g_poly;
 
-//SagFree追加-----------------------------
 //-----------------------------------------------------------------------------
 // ScenePBDクラスのstatic変数の定義と初期化
 //-----------------------------------------------------------------------------
@@ -162,14 +161,6 @@ void ScenePBD::drawHairObject(unsigned int vbo, int n, unsigned int color_vbo,un
 	glUseProgram(0);
 	glDisable(GL_POINT_SPRITE_ARB);
 }
-
-//以下SagFreeより持ってきたPBDに関連するクラス---------------------------------------------------------------------------------------
-
-
-//海老沢追加
-//複数の弾性体のデータ転送に使う配列の定義
-//vector<glm::vec3> m_NewPos;
-//vector<glm::vec3>m_NewVelocity;
 
 void ScenePBD::Init(int argc, char* argv[])
 {

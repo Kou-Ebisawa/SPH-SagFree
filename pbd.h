@@ -187,9 +187,6 @@ protected:
 	//線形システムでGLobalTorqueStepを解く
 	void VideoGlobalTorqueStep(float kbt);
 
-	//GPUから持ってきたGlobalTorqueStep
-	void GPU_GlobalTorqueStep(float kbt);
-
 	void integrate(float dt);
 
 

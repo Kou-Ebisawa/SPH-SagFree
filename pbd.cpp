@@ -43,14 +43,7 @@ glm::quat Quat_eigenToGlm(const Eigen::Quaterniond eigenQuat) {
 	return glm::quat(eigenQuat.w(), eigenQuat.x(), eigenQuat.y(), eigenQuat.z());
 }
 
-//デバック用
-//資源数の出力
-void PrintQuat(glm::quat q) {
-	cout << "Quat " << "w:" << q.w << " x:" << q.x << " y:" << q.y << " z:" << q.z << endl;
-}
-
 float g_wq = 1.0e-6;
-
 
 //-----------------------------------------------------------------------------
 // 課題用関数
@@ -61,6 +54,8 @@ float g_wq = 1.0e-6;
  * @param[in] ks 合成パラメータ(スライド中のk,現在の反復回数で変化するので引数として与える)
  */
 
+//CPUでSagFreeの処理をする場合
+//行列を用いて個々の毛髪ごとに線形システムを解くこととする
 void ElasticPBD::GlobalForceStep(void) {
 
 	using ScalarType = double;
@@ -104,12 +99,6 @@ void ElasticPBD::GlobalForceStep(void) {
 
 	//Aに値を設定
 	A.setFromTriplets(triplets.begin(), triplets.end());
-	//Eigen::MatrixXd A_dense = Eigen::MatrixXd(A);
-	//Eigen::MatrixXd A_inv=A_dense.inverse();
-	
-	//Aの値を出力(出力コメントアウト)
-	//cout << "A" << endl;
-	//cout << A << endl;
 
 	//右辺値を設定
 	for (int i = 0; i < (m_iNumEdge); i++) {
@@ -123,10 +112,6 @@ void ElasticPBD::GlobalForceStep(void) {
 		}
 	}
 
-	//(出力コメントアウト)
-	//cout << "b" << endl;
-	//cout << b << endl;
-
 	Eigen::SparseLU<SparseMatrix>solver;
 	solver.compute(A);
 	x = solver.solve(b);
@@ -134,11 +119,6 @@ void ElasticPBD::GlobalForceStep(void) {
 	for (int i = 0; i < (m_iNumEdge) * 3; i++) {
 		m_Fss[i / 3][i % 3] = x[i];
 	}
-	//求めた力の出力(出力コメントアウト)
-	/*for (int i = 0; i < m_iNumEdge; i++) {
-		if (i == 0) cout << "power per Edge --------------------------------------------------" << endl;
-		cout << "Fss" << i << ": " << glm::to_string(m_Fss[i]) << endl;
-	}*/
 }
 
 void ElasticPBD::LocalForceStep(float ks) {
@@ -159,8 +139,7 @@ void ElasticPBD::LocalForceStep(float ks) {
 		//ksが判別式を満たすかどうかを判断
 		float tmp_ks = ks;
 		//判別式を満たさない場合にksに追加する量
-		//float delta = 50.f;//大きいサイズ感
-		float delta = 10.f;//小さいサイズ感
+		float delta = 10.f;
 		
 		//判別式を満たすまでのループ
 		while (1) {
@@ -168,7 +147,6 @@ void ElasticPBD::LocalForceStep(float ks) {
 			float B = glm::dot((p1 - p2), Fss_i) / (tmp_ks)+1;//自分の感じた方
 			float AC = glm::length2(p1 - p2) * glm::length2(Fss_i) / (tmp_ks * tmp_ks);
 			//判別式
-			//cout << "did" << endl;
 			float discrim = B * B - 4 * AC;
 			if (discrim >= 0) break;
 			tmp_ks += delta;
@@ -181,8 +159,6 @@ void ElasticPBD::LocalForceStep(float ks) {
 		float a = fs_Len * fs_Len;
 		float b = -tmp_ks * (2.f * glm::dot(Fss_i, p1 - p2) + tmp_ks);
 		float c = tmp_ks * tmp_ks * glm::length2(p1 - p2);
-
-		//if (b * b - 4.f * a * c < 1.0e-6) printf("id:%d b*b-4.f*a*c<1.0e-6 :%f\n", i, b * b - 4.f * a * c);
 
 		l1 = sqrt((-b + sqrt(abs(pow(b, 2.0) - 4.f * a * c))) / (2.f * a));
 		l2 = sqrt((-b - sqrt(abs(pow(b, 2.0) - 4.f * a * c))) / (2.f * a));
@@ -199,11 +175,6 @@ void ElasticPBD::LocalForceStep(float ks) {
 		else {
 			cout << "Not Updated In LocalForceStep!!" << endl;
 		}
-
-		//if (-b - sqrt(b * b - 4.f * a * c) < 1.0e-6) printf("id:%d -b-sqrt(b*b-4.f*a*c<1.0e-6 :%f10 ,l1:%f,l2:%f New_length:%f,a:%f\n", i, -b - sqrt(b * b - 4.f * a * c), l1, l2, m_vLengths[i],a);
-
-		//長さの候補と選択された長さの出力(出力コメントアウト)
-		//cout << "length_candidate " << l1 << " " << l2 << " New Length " << i << ": " << m_vLengths[i] << endl;
 		//----------------------------------------------------------------------------------------------
 
 		//姿勢の更新--------------------------------------------------------------------------------------------------------
@@ -212,7 +183,7 @@ void ElasticPBD::LocalForceStep(float ks) {
 		//------------------------------------------------------------------------------------------------------------------
 
 		//結果の確認-----------------------------------------------------------
-		glm::vec3 new_Fss = (tmp_ks / m_vLengths[i]) * ((p1 - p2) / m_vLengths[i] + new_ds);//最後の姿勢を+に変更
+		//glm::vec3 new_Fss = (tmp_ks / m_vLengths[i]) * ((p1 - p2) / m_vLengths[i] + new_ds);//最後の姿勢を+に変更
 		//cout << "NewFss" << i << ": " << glm::to_string(new_Fss) << endl;
 		//---------------------------------------------------------------------
 
@@ -302,20 +273,12 @@ void ElasticPBD::VideoGlobalTorqueStep(float kbt) {
 			b[4 * i + 2] = Omega_Prev.z + Omega_Next.z - New_tau.z;
 			b[4 * i + 3] = Omega_Prev.w + Omega_Next.w - New_tau.w;
 		}
-		//cout << "did" << i << "times" << endl;
 	}
 
 	//Aに値を設定
 	A.setFromTriplets(triplets.begin(), triplets.end());
 	Eigen::MatrixXd A_dense = Eigen::MatrixXd(A);
 	Eigen::MatrixXd A_inv = A_dense.inverse();
-
-	//Aの値を出力
-	/*cout << "A" << endl;
-	cout << A << endl;
-
-	cout << "b" << endl;
-	cout << b << endl;*/
 
 	Eigen::SparseLU<SparseMatrix>solver;
 	solver.compute(A);
@@ -329,65 +292,8 @@ void ElasticPBD::VideoGlobalTorqueStep(float kbt) {
 		New_Quat.w = x[i * 4 + 3];
 
 		m_eOrgOmega[i] = New_Quat;
-		if (i == 0) {
-			//cout << "after GlobalTorqueStep ----------------------------------------------" << endl;
-		}
-		//cout << "Darboux " << i << " : x=" << m_eOrgOmega[i].x << " y=" << m_eOrgOmega[i].y << " z=" << m_eOrgOmega[i].z << " w=" << m_eOrgOmega[i].w << endl;
-		//cout << "Darboux Length" << i << ": " << glm::length(m_eOrgOmega[i]) << endl;
 	}
 }
-
-//GPUの方から持ってくる
-void ElasticPBD::GPU_GlobalTorqueStep(float kbt) {
-	for (int i = m_iNumEdge-1; i >0; i--) {
-		const rxEdge& e = m_poly.edges[i];
-		glm::vec3 p1 = m_poly.vertices[e.v[0]];//xp
-		glm::vec3 p2 = m_poly.vertices[e.v[1]];//xp+
-
-		float l0 = m_vLengths[i];//フォースステップでの更新後の長さを利用
-		glm::quat qs = m_vQuat[i];
-		float ks = m_NewKss[i];
-
-		glm::vec4 torqueSS;
-		glm::vec3 V = (p1 - p2) / l0;
-		torqueSS[0] = 4 * (qs.x * qs.x * qs.x + qs.x * qs.y * qs.y + qs.x * qs.z * qs.z + qs.x * qs.w * qs.w + V.z * qs.x - V.x * qs.z + V.y * qs.w);//x
-		torqueSS[1] = 4 * (qs.y * qs.y * qs.y + qs.y * qs.x * qs.x + qs.y * qs.z * qs.z + qs.y * qs.w * qs.w + V.z * qs.y - V.x * qs.w - V.y * qs.z);//y
-		torqueSS[2] = 4 * (qs.z * qs.z * qs.z + qs.z * qs.x * qs.x + qs.z * qs.y * qs.y + qs.z * qs.w * qs.w - V.z * qs.z - V.x * qs.x - V.y * qs.y);//z
-		torqueSS[3] = 4 * (qs.w * qs.w * qs.w + qs.w * qs.x * qs.x + qs.w * qs.y * qs.y + qs.w * qs.z * qs.z - V.z * qs.w - V.x * qs.y + V.y * qs.x);//w
-		torqueSS = 1.f / 2.f * ks * torqueSS;
-
-		glm::quat torqueSS_quat(torqueSS[3], torqueSS[0], torqueSS[1], torqueSS[2]);
-
-		float K = 2 * kbt / (l0);//kに当たる部分
-		float s0, s1;//曲げ剛性の方向についてとりあえずpositiveだけを考える(本来はエッジごとに指定されるため、Omega_{i,0}に掛けられるsは常に同じ
-		s0 = s1 = 1;
-
-		glm::quat kq_inv = glm::inverse(K * m_vQuat[i]);
-		torqueSS_quat = torqueSS_quat * kq_inv;
-
-		glm::quat Rest_Omega_Prev;
-		glm::quat Cur_Omega_Prev;
-		if (i == m_iNumEdge-1) {
-			Cur_Omega_Prev = glm::conjugate(m_vQuat[i - 1]) * m_vQuat[i];
-			Rest_Omega_Prev = Cur_Omega_Prev + (-torqueSS_quat);
-
-			torqueSS_quat = torqueSS_quat * kq_inv;
-			//printf("id:%d K:%f kq_inv x:%f,y:%f,z:%f,w:%f torqueSS x:%f,y:%f,z:%f,w:%f\n", i, K, kq_inv.x, kq_inv.y, kq_inv.z, kq_inv.w, torqueSS_quat.x, torqueSS_quat.y, torqueSS_quat.z, torqueSS_quat.w);
-			//printf("id:%d Rest_Omega_Prev x:%f,y:%f,z:%f,w:%f\n", i, Rest_Omega_Prev.x, Rest_Omega_Prev.y, Rest_Omega_Prev.z, Rest_Omega_Prev.w);
-		}
-		else {
-			Cur_Omega_Prev = glm::conjugate(m_vQuat[i - 1]) * m_vQuat[i];
-			glm::quat Cur_Omega_Next = glm::conjugate(glm::conjugate(m_vQuat[i]) * m_vQuat[i + 1]);
-			//printf("id :%d Cur_Omega_Prev x:%f,y:%f,z:%f,w:%f Cur_Omega_Next x:%f,y:%f,z:%f,w:%f\n", i, Cur_Omega_Prev.x, Cur_Omega_Prev.y, Cur_Omega_Prev.z, Cur_Omega_Prev.w, Cur_Omega_Next.x, Cur_Omega_Next.y, Cur_Omega_Next.z, Cur_Omega_Next.w);
-
-			Rest_Omega_Prev = Cur_Omega_Next + Cur_Omega_Prev + (-m_eOrgOmega[i]) + (-torqueSS_quat);
-			Rest_Omega_Prev = glm::conjugate(Rest_Omega_Prev);
-			printf("id:%d Rest_Omega_Prev x:%f,y:%f,z:%f,w:%f\n", i, Rest_Omega_Prev.x, Rest_Omega_Prev.y, Rest_Omega_Prev.z, Rest_Omega_Prev.w);
-		}
-		m_eOrgOmega[i - 1] = Rest_Omega_Prev;//Rest_Omega_Prevから変更中
-	}
-}
-
 
 glm::vec4 FourDtorqueSolver(glm::quat q1, glm::quat q2, glm::quat Darboux) {//1セグメント前の曲げ・ねじれのトルクを計算する(2つ目以降のτの右辺値)
 	glm::vec4 torque;
@@ -426,32 +332,17 @@ glm::quat SecondFourDtorqueSolver(glm::quat q1, glm::quat q2, glm::vec4 torqueSS
 	b[2] -= sum * q1.z;
 	b[3] -= sum * q1.w;
 	//------------------------------------------------------------
-	
-	//検算用の計算前のbの値の出力
-	//cout << "before" << endl;
-	//cout << b << endl;
 
 	x = A.partialPivLu().solve(b);//Eigenソルバにより、行列を解く
 
-	//検算用の計算後の値
-	//cout << "after" << endl;
-	//cout << A * x << endl;
 
 	glm::quat quat;
 	quat = glm::quat(x[3], x[0], x[1], x[2]);
-	//セグメント毎に正規化する場合は下をコメントアウト
-	//quat = glm::normalize(quat);
 
 	return quat;
 }
 
 void ElasticPBD::GlobalTorqueStep(float kbt) {
-	//(出力コメントアウト)
-	//cout << "DarbouxVector before updating" << endl;
-	for (int i = 0; i < m_iNumEdge - 1; i++) {
-		//(出力コメントアウト)
-		//cout << "Darboux " << i << ": x=" << m_eOrgOmega[i].x << " y=" << m_eOrgOmega[i].y << " z=" << m_eOrgOmega[i].z << " w=" << m_eOrgOmega[i].w << endl;
-	}
 	for (int i = 0; i < m_iNumEdge-1; i++) {
 		const rxEdge& e = m_poly.edges[i];
 		glm::vec3 p1 = m_poly.vertices[e.v[0]];//xp
@@ -561,21 +452,6 @@ void ElasticPBD::GlobalTorqueStep(float kbt) {
 			m_eOrgOmega[i] = s2*New_Darboux;
 		}
 	}
-	//更新後に値を更新
-	/*for (int i = 0; i < m_iNumEdge - 1; i++) {
-		m_eOrgOmega[i] = glm::normalize(m_eOrgOmega[i]);
-	}*/
-
-	//GlobalTorqueStepで更新された値を出力する-----------------------------------
-	//(出力コメントアウト)
-	//cout << "after GlobalTorqueStep ----------------------------------------------" << endl;
-	for (int i = 0; i < m_iNumEdge - 1; i++) {
-		//(出力コメントアウト)
-		//cout << "Darboux " << i << ": x=" << m_eOrgOmega[i].x << " y=" << m_eOrgOmega[i].y << " z=" << m_eOrgOmega[i].z << " w=" << m_eOrgOmega[i].w << endl;
-		//cout << "Darboux Length " << i << ": " << glm::length(m_eOrgOmega[i]) << endl;
-	}
-	//cout << endl;
-	//---------------------------------------------------------------------------
 }
 
 //LocalTorqueStepにおける基準ダルボーベクトルを求め、曲げ剛性を上げる処理
@@ -616,26 +492,7 @@ void ElasticPBD::LocalTorqueStep(float kbt) {
 		glm::quat Last_Omega = solveInverseRot(qs, Omega, tmp_kbt);
 		m_eOrgOmega[i] = Last_Omega;
 		m_NewKbt[i] = tmp_kbt;
-
-		float B1, B2;
-		glm::vec4 Last_Omega_vec(Last_Omega.x, Last_Omega.y, Last_Omega.z, Last_Omega.w);
-		glm::vec4 qs_vec(qs.x, qs.y, qs.z, qs.w);
-
-		//B1 = glm::dot(qs_vec, Last_Omega_vec);
-		//B2 = glm::dot(qs_vec, -Last_Omega_vec);
-
-		/*if (B1 < B2) {
-			m_eOrgOmega[i] *= -1;
-		}*/
-
-		//最終的なダルボーベクトルの長さを出力(出力コメントアウト)
-		//cout << "Darboux Length " << i << ": " << glm::length(m_eOrgOmega[i]) << endl;
-
-		//最終的なダルボーベクトルの出力(出力コメントアウト)
-		//cout << "Darboux " << i << ": x=" << m_eOrgOmega[i].x << " y=" << m_eOrgOmega[i].y << " z=" << m_eOrgOmega[i].z << " w=" << m_eOrgOmega[i].w << endl;
-		//cout << "Kbt:" << m_NewKbt[i] << endl;
 	}
-	//cout << endl;
 }
 
 void ElasticPBD::SetCoefficient(float ks, float kbt) {
@@ -674,13 +531,13 @@ void ElasticPBD::projectStretchingConstraint(float dt)
 		glm::vec3 dp1, dp2;
 		glm::vec3 Xdp1, Xdp2;
 		dp1, dp2 = glm::vec3(0);
-		// ----課題ここから----
+
 		float w1 = 1 / m1;
 		float w2 = 1 / m2;
 		float wq = 1.0e-6;//q(姿勢)における仮定の重さ
 
 		//(strech&shear_Constraint)---------------------------------------------------------
-		//拡張PBD---------------------------------------------------------------------------------------
+		//XPBD---------------------------------------------------------------------------------------
 		float DT = dt;//時間ステップ
 		float A;//コンプライアンス(大きくなるほど柔らかくなる)
 		float tmp_ks = m_NewKss[i];//実際に用いる値
@@ -700,8 +557,6 @@ void ElasticPBD::projectStretchingConstraint(float dt)
 		Xdp2 = lamda / d;
 
 		glm::quat quat2 = -2.f * glm::quat(0.f, lamda) * m_vQuat[i] * glm::conjugate(glm::quat(0, 0, 0, 1));
-		//cout << "Zero "<<glm::quat(0.f, lamda).w << endl;
-		//C^ssによるパラメータの更新----------------------------------------------
 		//XPBDによる四元数の更新
 		m_vQuat[i] = glm::normalize(m_vQuat[i] + quat2);
 
@@ -821,8 +676,7 @@ void ElasticPBD::SagFree(float ks, float kbt) {
 	GlobalForceStep();
 	LocalForceStep(ks);
 	//GlobalTorqueStep(kbt);
-	//VideoGlobalTorqueStep(kbt);
-	GPU_GlobalTorqueStep(kbt);
+	VideoGlobalTorqueStep(kbt);
 	LocalTorqueStep(kbt);
 }
 
@@ -868,9 +722,7 @@ void ElasticPBD::PBDConstraint(float ks) {
 		glm::quat gammaq = glm::quat(0.0, gamma);
 		glm::quat delta_q = wq * d * gammaq * q_e3_bar;
 
-		cout << "delta pos " << i << " " << glm::to_string(delta_p1) << endl;
-
-		if (!m_vFix[v1]) m_vNewPos[v1] += ks*delta_p1;//ksがないと全く動かない
+		if (!m_vFix[v1]) m_vNewPos[v1] += ks*delta_p1;
 		if (!m_vFix[v2]) m_vNewPos[v2] += ks*delta_p2;
 
 		m_vQuat[i] = glm::normalize(m_vQuat[i] + delta_q);
@@ -928,10 +780,9 @@ void ElasticPBD::onlyStretch(float ks) {
 void ElasticPBD::Update(float dt)
 {
 	// 外力で速度を更新＆予測位置p'の計算
-	//m_fWind = 9.81*dt;//一時的に設定
 	calExternalForces(dt);
 	// 衝突処理(p'を更新)
-	//genCollConstraints(dt);//スケール感を変えたときに、調整が面倒なのでスキップ
+	//genCollConstraints(dt);
 
 	if (PBDstep == 0) {
 		//SagFree(PBD_ks, PBD_kbt);
@@ -950,25 +801,13 @@ void ElasticPBD::Update(float dt)
 		projectBendingConstraint(dt);
 		//projectCollisionConstraint(dt);
 
-		//PBDConstraint(ks);
-		//onlyStretch(ks);
 	}
-
-	//cout << "Pos 1 " << glm::to_string(m_vNewPos[1]) << endl;
-	/*for (int j = 0; j < m_iNumVertices; j++) {
-		cout << "Vertices" << j << ": " << glm::to_string(m_vNewPos[j]) << endl;
-	}*/
 
 	// 速度と位置の更新
 	integrate(dt);
 	PBDstep++;
 	//ステップの表示
 	//cout << PBDstep << "step ---------------------------------------------------------" << endl;
-
-	//風を吹かせる場合
-	/*if (PBDstep > 300) {
-		m_fWind = 0.1;
-	}*/
 }
 
 
