@@ -481,18 +481,15 @@ bool SPH::Update(float dt, int step)
 	// 近傍探索用グリッドセルに粒子情報を格納(実際にはハッシュを計算しているだけで格納はしていない)
 	SetParticlesToCell(pos, m_d_vel, m_num_particles, h);
 
-	//海老沢追加----------------------------------------------------------------------------
-	//if(init==true) CuRestDensSet(pos, m_d_rest_density, m_d_vol, m_num_particles);
-	//CuSphCalVolume(m_d_vol, m_d_attr, m_num_particles, m_params.mass / m_params.rest_dens);
-	//CuRestDensSet(pos, m_d_rest_density, m_d_vol, m_num_particles);
-	//--------------------------------------------------------------------------------------
-
-	//cout << "time step:" << dt << endl;
-
 	//海老沢追加
 	//シンプルなsphかpbfかをここで決める
 	bool sph = true;
 	bool pbf = false;
+
+	//海老沢追加
+	//速度，加速度が一定(VEL_EPSILON,ANGVEL_EPSILON)以下の場合，速度を切り捨てる
+	bool vel_control = false;
+	//-------------------------------------------------------------------------
 
 	// CUDAカーネルによる粒子処理
 	CuSphDensity(m_d_rest_density,m_d_dens, m_d_vol, m_num_particles);	// 密度計算
@@ -547,12 +544,11 @@ bool SPH::Update(float dt, int step)
 	//CuPBDStretchingConstraint(pos, m_d_mass, m_d_rest_length, m_d_kss, m_d_quat, m_d_fix, m_num_particles, iter);
 
 	//時間積分---------------------------------------------------
-	//重力をかけない場合にはgravityに0を入れる
-	//float3 gravity = make_float3(0, -9.81, 0);
-	CuIntegrate(pos, m_d_curpos, m_d_vel, dt, m_num_particles);
+	//vel_controlで一定以下の速度を切り捨てるか判定
+	CuIntegrate(pos, m_d_curpos, m_d_vel, dt, m_num_particles, vel_control);
 
 	//角加速度の積分
-	CuAngVelIntegrate(m_d_angvel, m_d_curquat, m_d_quat, m_d_fix,dt, m_num_particles);
+	CuAngVelIntegrate(m_d_angvel, m_d_curquat, m_d_quat, m_d_fix, dt, m_num_particles, vel_control);
 	//-----------------------------------------------------------
 
 	//摩擦制約の実装--------------------------------------

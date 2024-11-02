@@ -1274,7 +1274,7 @@ void CxCollisionConstraint(float* dpos, float* dvel, int* dfix, float3 center, f
 //dt:タイムステップ
 //n:粒子数
 __global__
-void CxIntegrate(float* dpos, float* dcurpos,float* dvel,float dt,int n) {
+void CxIntegrate(float* dpos, float* dcurpos,float* dvel,float dt,int n,bool vel_control) {
     int id = blockDim.x * blockIdx.x + threadIdx.x;
     if (id >= n) return; // 粒子数を超えるスレッドIDのチェック(余りが出ないようにブロック数などが設定できるなら必要ない)
 
@@ -1283,7 +1283,7 @@ void CxIntegrate(float* dpos, float* dcurpos,float* dvel,float dt,int n) {
     float3 vel = (pos-cur_pos)/dt;
     
     //時間積分の際に，一定速度以下の粒子については変化なしとして，固定してしまう
-    if (length(vel) < VEL_EPSILON) {
+    if (vel_control&&length(vel) < VEL_EPSILON) {
         //速度を0に固定
         vel = make_float3(0.f);
         //位置を更新前の値に戻す
@@ -1462,7 +1462,7 @@ void CxAngVelUpdate(float* dangvel, float* dquat,int* dfix,float dt, int n) {
 
 //各加速度の時間積分
 __global__
-void CxAngVelIntegrate(float* dangvel,float* dcurquat, float* dquat,int* dfix,float dt, int n) {
+void CxAngVelIntegrate(float* dangvel,float* dcurquat, float* dquat,int* dfix,float dt, int n,bool vel_control) {
     int id = blockDim.x * blockIdx.x + threadIdx.x;
     if (id >= n-1) return;
     if (dfix[id + 1] == 1) return;
@@ -1476,7 +1476,7 @@ void CxAngVelIntegrate(float* dangvel,float* dcurquat, float* dquat,int* dfix,fl
     //printf("newAngVel x:%f,y:%f,z:%f,w:%f\n", delta_rot.x, delta_rot.y, delta_rot.z,delta_rot.w);
 
     //角速度が一定以下なら，動いていないとして固定する
-    if (length(new_AngVel) < ANGVEL_EPSILON) {
+    if (vel_control&&length(new_AngVel) < ANGVEL_EPSILON) {
         new_AngVel = make_float3(0.f);
         quat = cur_quat;
         dquat[QUAT * id] = quat.x;
@@ -1939,7 +1939,7 @@ void CxVideoGlobalTorqueStep(float* dpos, float* dquat, float* domega, float* dl
 //LocalTorqueStepを解くのに使う
 __device__ __host__
 float4 solveInverseRot(float4 quat, float4 tar, float& bendK) {
-    const float SAFETY_FACTOR = min(quat.w, 0.002f);//minが扱えるか、0.00002f,0.002f
+    const float SAFETY_FACTOR = min(quat.w, 0.00002f);//minが扱えるか、0.00002f,0.002f
 
     tar -= dot(tar, quat) * quat;
     float4 Omega = -tar / bendK;

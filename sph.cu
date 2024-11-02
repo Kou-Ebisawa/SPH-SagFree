@@ -367,10 +367,10 @@ void CuCollisionConstraint(float* dpos, float* dvel, int* dfix, float3 center, f
 
 //ŠC˜V‘ò’Ç‰Á
 //ŠÔÏ•ª
-void CuIntegrate(float* dpos,float* dcurpos,float* dvel,float dt,int n) {
+void CuIntegrate(float* dpos,float* dcurpos,float* dvel,float dt,int n,bool vel_control) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
-	CxIntegrate << <grid, block >> > (dpos, dcurpos, dvel, dt, n);
+	CxIntegrate << <grid, block >> > (dpos, dcurpos, dvel, dt, n, vel_control);
 	cudaThreadSynchronize();
 }
 
@@ -439,10 +439,10 @@ void CuAngVelUpdate(float* dangvel, float* dquat,int* dfix,float dt, int n) {
 }
 
 //Še‰Á‘¬“x‚ÌŠÔÏ•ª
-void CuAngVelIntegrate(float* dangvel,float* dcurquat, float* dquat,int* dfix,float dt, int n) {
+void CuAngVelIntegrate(float* dangvel,float* dcurquat, float* dquat,int* dfix,float dt, int n,bool vel_control) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
-	CxAngVelIntegrate << <grid, block >> > (dangvel, dcurquat, dquat,dfix, dt, n);
+	CxAngVelIntegrate << <grid, block >> > (dangvel, dcurquat, dquat, dfix, dt, n, vel_control);
 	cudaThreadSynchronize();
 }
 

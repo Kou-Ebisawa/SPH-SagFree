@@ -629,7 +629,7 @@ void ScenePBD::initSPH(int max_particles,int num_elastic, bool use_bp)
 		//-------------------------------------------------------------------------
 
 		g_sim->Initialize(env,num_elastic);
-		g_dt = DT;
+		//g_dt = DT;
 	}
 	m_currentstep = 0;
 
@@ -729,7 +729,7 @@ void ScenePBD::initElasticbodies(int num_elasticbodies, int num_particles,float 
 		}
 		m_elasticbodies[i]->FixVertex(0);
 
-		//SagFree処理の実行
+		//SagFree処理の実行(CPU)
 		//m_elasticbodies[i]->SagFree(kss, kbt);
 	}
 }
@@ -796,7 +796,7 @@ void ScenePBD::initElasticFromObj(vector<glm::vec3> PosArray, vector<glm::ivec2>
 		fix_index++;
 		m_elasticbodies[i]->FixVertex(0);
 		
-		//SagFree処理
+		//SagFree処理(CPU)
 		//m_elasticbodies[i]->SagFree(ks, kbt);
 	}
 

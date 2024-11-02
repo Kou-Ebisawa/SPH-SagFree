@@ -42,7 +42,7 @@ void CuXPBDConstraint(float* dpos, float* dmas, float* dlen, float* dkss, float*
 //衝突制約
 void CuCollisionConstraint(float* dpos, float* dvel, int* dfix, float3 center, float rad, float dt, int n);
 //時間積分
-void CuIntegrate(float* dpos, float* dcurpos, float* dvel, float dt, int n);
+void CuIntegrate(float* dpos, float* dcurpos, float* dvel, float dt, int n, bool vel_control);
 //外力計算
 void CuCalExternalForces(float* dpos, float* dmass, float* dvel, int* dfix,float3 gravity, float3 wind, float dt, int n);
 //PBDの位置ベース法
@@ -58,7 +58,7 @@ void CuSetParametersZero(float* dangvel,float* dfss,float*dpbf_lambda, int n);
 //角加速度の更新
 void CuAngVelUpdate(float* dangvel, float* dquat,int* dfix,float dt, int n);
 //各加速度の時間積分
-void CuAngVelIntegrate(float* dangvel,float* dcurquat, float* dquat,int* dfix,float dt, int n);
+void CuAngVelIntegrate(float* dangvel, float* dcurquat, float* dquat, int* dfix, float dt, int n, bool vel_control);
 //四元数の設定
 void CuQuatSet(float* dcurquat, float* dquat, int* dfix, int n);
 //基準となる姿勢の変更
@@ -70,8 +70,6 @@ void CuRestTotalDens(float* drestdens,float dens, int n);
 void CuGlobalForceStep(float* dfss,float* dmass,int* dlast_index,float3 gravity,int num_elastic);
 //ローカルフォースステップ
 void CuLocalForceStep(float* dpos, float* dlen, float* dquat,float* dcurquat, float* dkss, float* dfss, int* dfix, int n);
-//グローバルトルクステップ
-void CuGlobalTorqueStep(float* dpos, float* dquat, float* domega, float* dlen, float* dkss, float* dkbt, int* dfix, int* dlast_index, int num_elastic);
 //グローバルトルクステップ(Videoを参考にした方)
 void CuVideoGlobalTorqueStep(float* dpos, float* dquat, float* domega, float* dlen, float* dkss, float* dkbt, int* dfix, int* dlast_index, int num_elastic);
 //ローカルトルクステップ
