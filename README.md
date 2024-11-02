@@ -38,13 +38,13 @@ LocalForceStepまででは、螺旋型のような場合、変形を防ぐこと
 ここでは、個々のエッジに対して、変形を防ぐようなダルボーベクトルを曲げ剛性を含めて、適切に設定する。具体的には変形を防ぐ成分を維持した正規化や曲げ剛性を局所的に高めるなどである。ここでは，曲げ剛性と正規化した結果を求める際に，定数パラメータの設定が必要であるが，この設定によって，重力による変形を防ぐことができなかったり，自然な動きができなくなったりしてしまう．制約に用いるパラメータも含めて，この設定を適切に行うことが必要である．  
   
   変形を防ぐための初期化計算をしない場合
-  <div><video controls src="./Videos/GPU_SagFree(Naive).mp4" muted="false"></video></div>
+  <div><video controls src="./Videos/GPU_SagFree_SPH(Naive).mp4" muted="false"></video></div>
 
 LocalTorqueStepの定数パラメータを0.002で設定
-<div><video controls src="./Videos/GPU_SagFree(0.002f).mp4" muted="false"></video></div>
+<div><video controls src="./Videos/GPU_SagFree_SPH(0.002f).mp4" muted="false"></video></div>
 
 LocalTorqueStepの定数パラメータを0.00002で設定
-<div><video controls src="./Videos/GPU_SagFree(0.00002f).mp4" muted="false"></video></div>
+<div><video controls src="./Videos/GPU_SagFree_SPH(0.00002f).mp4" muted="false"></video></div>
 
 このように自然な動きと重力による変形を防ぐことが完全にトレードオフの関係になってしまっており，個々の改善が必要である．
 コンピュータで計算している以上、誤差が発生し、変形を完全に防ぐことは難しい。そのため、静止摩擦力を考慮したり、減衰を考慮したりすることで、ごく僅かな位置や姿勢の変化を切り捨てる処理が必要だと考えており、今後の課題である。
