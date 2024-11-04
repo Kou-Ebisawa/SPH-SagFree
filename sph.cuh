@@ -38,7 +38,7 @@ void CuSphIntegrateP(float* dpos, float* dvel, int* datt, int* dfix, int n);
 
 //海老沢追加--------------------------------------------------------------------------------
 //XPBDの制約
-void CuXPBDConstraint(float* dpos, float* dmas, float* dlen, float* dkss, float* dkbt,float* dquat,float* domega, float* dlamb_ss,float* dlamb_bt,int* dfix, float dt, int n,int iter);
+void CuXPBDConstraint(float* dpos, float* dmas, float* dlen, float* dkss, float* dkbt,float* dquat,float* domega, float* dlamb_ss,float* dlamb_bt,int* dfix, float dt, int n,int iter,bool example_flag);
 //衝突制約
 void CuCollisionConstraint(float* dpos, float* dvel, int* dfix, float3 center, float rad, float dt, int n);
 //時間積分
@@ -64,7 +64,7 @@ void CuRestTotalDens(float* drestdens,float dens, int n);
 
 //SagFree処理-------
 //グローバルフォースステップ
-void CuGlobalForceStep(float* dfss,float* dmass,int* dlast_index,float3 gravity,int num_elastic);
+void CuGlobalForceStep(float* dfss, float* dmass, int* dlast_index, float3 gravity, float* ddens, float* drestdens, float* dvol, int num_elastic);
 //ローカルフォースステップ
 void CuLocalForceStep(float* dpos, float* dlen, float* dquat,float* dcurquat, float* dkss, float* dfss, int* dfix, int n);
 //グローバルトルクステップ(Videoを参考にした方)
@@ -77,6 +77,10 @@ void CuLocalTorqueStep(float* dquat, float* domega, float* dlen, float* dkbt, in
 void CuPbfConstraint(float* dpos, float* ddens, float* drestdens, float* dpbf_lambda, float* dvol, int n);
 //PBFで解く場合の外力計算
 void CuPbfExternalForces(float* dacc, int* datt, float3 power, int n);
+//摩擦制約
+void CuFrictionConstraint(float* dpos, float* dcurpos, float* drestdens, float* dvol, float* ddens, int* dfix, int n);
+//2頂点から間のエッジのベクトルを求める
+void CuQuatSet(float* dpos, float* dquat, int* dfix, int n);
 //------------------------------------------------------------------------------------------
 
 // 粒子体積計算

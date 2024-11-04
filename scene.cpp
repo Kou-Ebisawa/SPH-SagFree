@@ -454,7 +454,7 @@ void ScenePBD::ImGui(GLFWwindow* window)
 	//一般の螺旋型の毛髪
 	//if (ImGui::Button("NaturalSpiral")) { initNaturalSpiralRod(); }
 	//実験的に毛髪を設定する際に利用
-	//if (ImGui::Button("ExampleRod")) { initExampleRod(); }
+	if (ImGui::Button("ExampleRod")) { initExampleRod(); }
 	//髪型を読み込む
 	if (ImGui::Button("MoreRod")) { initMoreRod(); }
 	//風を設定
@@ -928,6 +928,9 @@ void ScenePBD::initMoreRod(void) {
 	//SPH法の初期化
 	initSPH(all_particles,num_elasticbodies);//元はm_allnum(initElasticbodiesで設定)
 
+	//フラグをオンにしてみる
+	//g_sim->m_example_flag = true;
+
 	//データ転送に用いる配列の初期化
 	//initArray(all_particles);//元はm_allnum(initElasticbodiesで設定)
 
@@ -1070,6 +1073,12 @@ void ScenePBD::initExampleRod(void) {
 
 	initSPH(m_allnum,num_elasticbodies);
 	initArray(m_allnum);
+
+	//SPHの結果を表示する際には，他と少し変える----
+	g_sim->m_center = make_float3(0.0, 0.0, 0.0);
+	g_sim->m_rad = 0.35;
+	g_sim->m_example_flag = true;
+	//---------------------------------------------
 
 	XPBDtoSPH();
 	XPBDParamsToDevice(num_elasticbodies);

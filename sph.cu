@@ -353,7 +353,8 @@ void CuReorderDataAndFindCellStart(Cell cell, float* dpos, float* dvel, uint n)
 //dt:タイムステップ
 //n:粒子数
 //iter:反復回数
-void CuXPBDConstraint(float* dpos,float* dmas, float* dlen, float* dkss,float* dkbt, float* dquat, float* domega, float* dlamb_ss,float* dlamb_bt,int* dfix, float dt,int n,int iter) {
+//example_flag:形状によって，処理を一部変える
+void CuXPBDConstraint(float* dpos,float* dmas, float* dlen, float* dkss,float* dkbt, float* dquat, float* domega, float* dlamb_ss,float* dlamb_bt,int* dfix, float dt,int n,int iter,bool example_flag) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
 	//XPBDの処理のために，λを0にする
@@ -363,13 +364,13 @@ void CuXPBDConstraint(float* dpos,float* dmas, float* dlen, float* dkss,float* d
 	for (int i = 0; i < iter; i++) {
 		//全ての制約を同時に実行すると，衝突が発生するため，奇数と偶数に分けて実行する
 		//偶数番目のidを実行
-		CxStrechingShearConstraint << <grid, block >> > (dpos, dmas, dlen, dkss, dquat, dlamb_ss, dfix, dt, n, 0, i);
-		CxBendTwistConstraint << <grid, block >> > (dquat, domega, dkbt, dlamb_bt,dlen, dfix, dt, n,0,i);
+		CxStretchingShearConstraint << <grid, block >> > (dpos, dmas, dlen, dkss, dquat, dlamb_ss, dfix, dt, n, 0, i,example_flag);
+		CxBendTwistConstraint << <grid, block >> > (dquat, domega, dkbt, dlamb_bt,dlen, dfix, dt, n,0,i, example_flag);
 		//念のため，半分処理した時点で同期を挟む
 		cudaThreadSynchronize();
 		//奇数番目のidを実行
-		CxStrechingShearConstraint << <grid, block >> > (dpos, dmas, dlen, dkss, dquat, dlamb_ss, dfix, dt, n, 1, i);
-		CxBendTwistConstraint << <grid, block >> > (dquat, domega, dkbt, dlamb_bt,dlen, dfix, dt, n, 1,i);
+		CxStretchingShearConstraint << <grid, block >> > (dpos, dmas, dlen, dkss, dquat, dlamb_ss, dfix, dt, n, 1, i, example_flag);
+		CxBendTwistConstraint << <grid, block >> > (dquat, domega, dkbt, dlamb_bt,dlen, dfix, dt, n, 1,i, example_flag);
 		//念のため，同期を行う
 		cudaThreadSynchronize();
 	}
@@ -519,10 +520,10 @@ void CuRestTotalDens(float* drestdens,float dens, int n) {
 //last_index:毛髪ごとの最後の粒子のインデックスを格納
 //gravity:重力
 //num_elastic:ここでは，毛髪ごとに並列計算するため，毛髪の数を渡す
-void CuGlobalForceStep(float* dfss,float* dmass, int* last_index, float3 gravity, int num_elastic) {
+void CuGlobalForceStep(float* dfss,float* dmass, int* last_index, float3 gravity,float* ddens,float* drestdens,float* dvol, int num_elastic) {
 	dim3 block, grid;
 	CuCalGridN(num_elastic, block, grid);
-	CxGlobalForceStep << <grid, block >> > (dfss,dmass, last_index, gravity, num_elastic);
+	CxGlobalForceStep << <grid, block >> > (dfss, dmass, last_index, gravity, ddens, drestdens, dvol, num_elastic);
 	cudaThreadSynchronize();
 }
 
@@ -601,6 +602,22 @@ void CuPbfExternalForces(float* dacc, int* datt, float3 power, int n) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
 	CxPbfExternalForces << <grid, block >> > (dacc, datt, power, n);
+	cudaThreadSynchronize();
+}
+
+//摩擦制約
+void CuFrictionConstraint(float* dpos, float* dcurpos, float* drestdens, float* dvol, float* ddens, int* dfix, int n) {
+	dim3 block, grid;
+	CuCalGridN(n, block, grid);
+	CxFrictionConstraint << <grid, block >> > (dpos, dcurpos, drestdens, dvol, ddens, dfix, n);
+	cudaThreadSynchronize();
+}
+
+//2頂点から姿勢を設定
+void CuQuatSet(float* dpos, float* dquat, int* dfix, int n) {
+	dim3 block, grid;
+	CuCalGridN(n, block, grid);
+	CxQuatSet << <grid, block >> > (dpos, dquat, dfix, n);
 	cudaThreadSynchronize();
 }
 

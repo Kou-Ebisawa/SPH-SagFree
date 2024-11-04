@@ -138,6 +138,8 @@ void SPH::Initialize(const SceneParameter &env,int num_elastic)
 	//衝突をする球との判定
 	m_center = make_float3(-5.0, 0.0, 0.0);
 	m_rad = 0.35;
+	//ExampleRodの場合，重みや処理の一部を変更する必要があるため，フラグで管理する
+	m_example_flag = false;
 	//------------------------------------------------------------------------------------ 
 	// 有効半径などの計算
 	float volume = m_params.max_particles*m_params.mass/ m_params.rest_dens;
@@ -296,7 +298,7 @@ void SPH::Allocate(int max_particles)
 void SPH::SagFree(void) {
 	float* pos = (float*)CuMapGLBufferObject(&m_cgr_pos);
 
-	CuGlobalForceStep(m_d_fss, m_d_mass, m_d_last_index, make_float3(0, -9.81, 0), m_numElastic);
+	CuGlobalForceStep(m_d_fss, m_d_mass, m_d_last_index, make_float3(0, -9.81, 0), m_d_dens, m_d_rest_density, m_d_vol, m_numElastic);
 	CuLocalForceStep(pos, m_d_rest_length, m_d_quat,m_d_curquat, m_d_kss, m_d_fss, m_d_fix, m_num_particles);
 	CuGlobalTorqueStep(pos, m_d_quat, m_d_rest_darboux, m_d_rest_length, m_d_kss, m_d_kbt, m_d_fix, m_d_last_index, m_numElastic);
 	CuLocalTorqueStep(m_d_quat, m_d_rest_darboux, m_d_rest_length, m_d_kbt, m_d_fix, m_num_particles);
@@ -454,7 +456,7 @@ bool SPH::Update(float dt, int step)
 
 	//海老沢追加
 	//速度，加速度が一定(VEL_EPSILON,ANGVEL_EPSILON)以下の場合，速度を切り捨てる
-	bool vel_control = false;
+	bool vel_control = true;
 	//-------------------------------------------------------------------------
 
 	// CUDAカーネルによる粒子処理
@@ -499,10 +501,9 @@ bool SPH::Update(float dt, int step)
 		}
 	}
 
-
 	int iter = 64;
 	//XPBDの制約の処理(伸び・せん断制約，曲げねじれ制約(中で反復)
-	CuXPBDConstraint(pos, m_d_mass, m_d_rest_length, m_d_kss, m_d_kbt, m_d_quat, m_d_rest_darboux, m_d_lambda_ss, m_d_lambda_bt, m_d_fix, dt, m_num_particles, iter);
+	CuXPBDConstraint(pos, m_d_mass, m_d_rest_length, m_d_kss, m_d_kbt, m_d_quat, m_d_rest_darboux, m_d_lambda_ss, m_d_lambda_bt, m_d_fix, dt, m_num_particles, iter,m_example_flag);
 
 	//PBDの伸びせん断制約(確認用)
 	//CuPBDStretchingConstraint(pos, m_d_mass, m_d_rest_length, m_d_kss, m_d_quat, m_d_fix, m_num_particles, iter);
@@ -517,7 +518,9 @@ bool SPH::Update(float dt, int step)
 
 	//摩擦制約の実装--------------------------------------
 	SetParticlesToCell(pos, m_d_vel, m_num_particles, h);
-
+	//CuFrictionConstraint(pos, m_d_curpos, m_d_rest_density, m_d_vol, m_d_dens, m_d_fix, m_num_particles);
+	//摩擦によって動いた分，元の位置に姿勢を戻す(2頂点の位置に直接戻すだけではダメ)
+	//CuQuatSet(pos, m_d_quat, m_d_fix, m_num_particles);
 	//----------------------------------------------------
 
 	//衝突制約
