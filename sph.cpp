@@ -299,8 +299,18 @@ void SPH::SagFree(void) {
 	float* pos = (float*)CuMapGLBufferObject(&m_cgr_pos);
 
 	CuGlobalForceStep(m_d_fss, m_d_mass, m_d_last_index, make_float3(0, -9.81, 0), m_d_dens, m_d_rest_density, m_d_vol, m_numElastic);
+
 	CuLocalForceStep(pos, m_d_rest_length, m_d_quat,m_d_curquat, m_d_kss, m_d_fss, m_d_fix, m_num_particles);
+	//トルクの計算
+	//cout << "before Global Torque Step------------------------------------------------------" << endl;
+	//CuCalcTorque(pos, m_d_mass, m_d_quat, m_d_fss, m_d_rest_length, m_d_kss, m_d_fix, make_float3(0, -9.81, 0), m_num_particles);
+
 	CuGlobalTorqueStep(pos, m_d_quat, m_d_rest_darboux, m_d_rest_length, m_d_kss, m_d_kbt, m_d_fix, m_d_last_index, m_numElastic);
+
+	//トルクの計算
+	//cout << "before Global Torque Step------------------------------------------------------" << endl;
+	//CuCalcTorque(pos, m_d_mass, m_d_quat, m_d_fss, m_d_rest_length, m_d_kss, m_d_fix, make_float3(0, -9.81, 0), m_num_particles);
+
 	CuLocalTorqueStep(m_d_quat, m_d_rest_darboux, m_d_rest_length, m_d_kbt, m_d_fix, m_num_particles);
 
 	// GPUメモリ領域をアンマップ
@@ -451,8 +461,8 @@ bool SPH::Update(float dt, int step)
 
 	//海老沢追加
 	//シンプルなsphかpbfかをここで決める
-	bool sph = true;
-	bool pbf = false;
+	bool sph = false;
+	bool pbf = true;
 
 	//海老沢追加
 	//速度，加速度が一定(VEL_EPSILON,ANGVEL_EPSILON)以下の場合，速度を切り捨てる
@@ -493,7 +503,7 @@ bool SPH::Update(float dt, int step)
 
 	//密度制約の利用
 	if (pbf) {
-		for (int i = 0; i < 10; i++) {//反復回数元は2解
+		for (int i = 0; i < 20; i++) {//反復回数元は2回
 			//密度制約のためにソートしなおす
 			SetParticlesToCell(pos, m_d_vel, m_num_particles, h);
 			//密度制約

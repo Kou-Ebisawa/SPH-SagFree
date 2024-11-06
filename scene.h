@@ -128,7 +128,7 @@ public:
 	static void Destroy();
 
 	//海老沢追加------------------------------------------------
-	static void initSPH(int max_particles,int num_elastic, bool use_bp = true);
+	static void initSPH(int max_particles,int num_elastic,float mass, bool use_bp = true);
 	//XBPD->SPHでのデータのやり取りをする配列
 	static void initArray(int max_particles);
 	static void clearArray(void);
@@ -142,7 +142,7 @@ public:
 	
 	//髪型のobjファイルを読み込む
 	static bool readObjFile(const char* filename, vector<glm::vec3>& PosArray, vector<glm::ivec2>& IndexArray, vector<int>& FixArray);
-	static void initElasticFromObj(vector<glm::vec3>PosArray, vector<glm::ivec2>IndexArray, vector<int>FixArray, float ks, float kbt,int& num_elastic,int &all_particles);
+	static void initElasticFromObj(vector<glm::vec3>PosArray, vector<glm::ivec2>IndexArray, vector<int>FixArray, float ks, float kbt,float mass,int& num_elastic,int &all_particles);
 
 	static void drawHairObject(unsigned int vbo, int n, unsigned int color_vbo,unsigned int normal_vbo, float* data, int offset, double pscale, double prad, double czf = 1000, double czb = -1000);
 	//風の強さを変える
@@ -164,7 +164,7 @@ private:
 	static void initCenterSpiralRod(void);
 	static void initNaturalSpiralRod(void);
 	static void initExampleRod(void);
-	static void initMoreRod(void);
+	static void initMoreRod(bool sag_free_flag);
 
 	// マウスピック
 	static void clearPick(void);

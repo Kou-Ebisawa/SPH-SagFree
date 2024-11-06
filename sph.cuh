@@ -81,6 +81,8 @@ void CuPbfExternalForces(float* dacc, int* datt, float3 power, int n);
 void CuFrictionConstraint(float* dpos, float* dcurpos, float* drestdens, float* dvol, float* ddens, int* dfix, int n);
 //2頂点から間のエッジのベクトルを求める
 void CuQuatSet(float* dpos, float* dquat, int* dfix, int n);
+//エッジごとのトルクを求める
+void CuCalcTorque(float* dpos,float* dmas, float* dquat, float* dfss, float* dlength,float*dkss, int* dfix, float3 gravity, int n);
 //------------------------------------------------------------------------------------------
 
 // 粒子体積計算

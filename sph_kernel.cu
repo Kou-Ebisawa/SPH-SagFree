@@ -1071,10 +1071,12 @@ void CxStretchingShearConstraint(float* dpos, float* dmas, float* dlen, float* d
     float w2 = 1 / mass;//重み
     float wq = 1.0;//辺の重み
     //重みの適切な設定についてはまだ定まっていない
+    //重みを2つの頂点の質量の和として設定
+    wq = w1 + w2;
     //wq = 7.5e3;
     //Example Rod
     if (example_flag) {
-        w1 = w2 = 1 / length;
+        w1 = w2 = 1/length;
         wq = 1.0e5*length;
     }
 
@@ -1143,6 +1145,7 @@ int deltaOmegaSign(float4 delta_omega, float4 delta_omega_plus) {
 }
 
 //曲げねじれ制約の追加
+//dmas:質量
 //dquat:辺の姿勢(四元数)
 //domega:基準ダルボーベクトル
 //dkbt:曲げ剛性
@@ -1153,7 +1156,7 @@ int deltaOmegaSign(float4 delta_omega, float4 delta_omega_plus) {
 //odd_even:偶数のスレッドIDか奇数のスレッドIDかを判別
 //example_flag:形状によって，処理を一部変更する
 __global__ 
-void CxBendTwistConstraint(float* dquat, float* domega, float* dkbt, float* dlamb_bt, float* dlength, int* dfix, float dt, int n, int odd_even, int iter,bool example_flag) {
+void CxBendTwistConstraint(float* dmas,float* dquat, float* domega, float* dkbt, float* dlamb_bt, float* dlength, int* dfix, float dt, int n, int odd_even, int iter,bool example_flag) {
     int id = blockDim.x * blockIdx.x + threadIdx.x;
     id = id * 2 + odd_even;
     if (id >= n - 2) return; // 粒子数を超えるスレッドIDのチェック(余りが出ないようにブロック数などが設定できるなら必要ない) 最後の2粒子はスキップ
@@ -1171,9 +1174,12 @@ void CxBendTwistConstraint(float* dquat, float* domega, float* dkbt, float* dlam
     float wq1 = 1.0f;//1/(1.0e-3)*dlen1
     float wq2 = 1.0f;
     float alpha = 1 / (kbt * dt * dt);
+    //重みの設定に利用(全ての質量は等しいと仮定)
+    float mass = dmas[id];
     //重みの適切な設定はまだ定まっていない
     //wq1 = 1.0f / dlen1;
     //wq2 = 1.0f / dlen2;
+    wq1 = wq2 = 2 / mass * 10;
     if (example_flag) {
         wq1 = wq2 = 1.0e5 * dlen1;
     }
@@ -1277,6 +1283,8 @@ void CxIntegrate(float* dpos, float* dcurpos,float* dvel,float dt,int n,bool vel
         dpos[DIM * id + 1] = pos.y;
         dpos[DIM * id + 2] = pos.z;
     }
+
+    //if (length(vel) > 1.0e-2) printf("id %d vel x:%f,y:%f,z:%f\n", id, vel.x, vel.y, vel.z);
 
     dvel[DIM * id] = vel.x;
     dvel[DIM * id + 1] = vel.y;
@@ -1467,6 +1475,8 @@ void CxAngVelIntegrate(float* dangvel,float* dcurquat, float* dquat,int* dfix,fl
         dquat[QUAT * id + 2] = quat.z;
         dquat[QUAT * id + 3] = quat.w;
     }
+
+    //if (length(new_AngVel) > 1.0e-2)printf("id %d angvel x:%f,y:%f,z:%f\n", id, new_AngVel.x, new_AngVel.y, new_AngVel.z);
 
     dangvel[DIM * id] = new_AngVel.x;
     dangvel[DIM * id + 1] = new_AngVel.y;
@@ -1707,6 +1717,37 @@ float3 calcFrictionForce(float3 dir_i, float3 dir_j, float* ddens, float* drestd
     return x_fric;
 }
 
+__device__ __host__
+float3 CalcNormalTorque(float3 pos0, float3 pos1, float4 quat, float3 fss, float len, float mass0, float mass1, float3 gravity) {
+    float3 mid = (pos0 + pos1) / 2.f;
+    //方向ベクトルを求める
+    float3 dir = rotVecByQuat(make_float3(0, 0, 1), quat);
+    //0,1の質点に対する重心(エッジ中央)からのベクトル
+    float3 r0 = normalize(-dir + mid) * len / 2;
+    float3 r1 = normalize(dir + mid) * len / 2;
+
+    //内力によるエッジにかかる力を両方の質点と外積を取る
+    float3 tau_int0 = cross(r0, fss);
+    float3 tau_int1 = cross(r1, fss);
+
+    //内力によるトルクを出力
+    float3 tau_internal = tau_int0 + tau_int1;
+    //printf("id %d tau_internal x:%f,y:%f,z:%f\n",id,tau_internal.x,tau_internal.y,tau_internal.z);
+
+    //外力(重力)によるトルクを求める
+    float3 tau_ext0 = cross(r0, mass0 * gravity);
+    float3 tau_ext1 = cross(r1, mass1 * gravity);
+
+    //外力によるトルクを出力
+    float3 tau_external = tau_ext0 + tau_ext1;
+    //printf("id %d tau_external x:%f,y:%f,z:%f\n", id, tau_external.x, tau_external.y, tau_external.z);
+
+    float3 total_torque = tau_internal + tau_external;
+    //if (length(total_torque) > 1.0e-3) printf("id %d total_torque x:%f,y:%f,z:%f\n", id, total_torque.x, total_torque.y, total_torque.z);
+
+    return total_torque;
+}
+
 //グローバルフォースステップ
 //ひとまず摩擦項を考えずに、単純に重力から求めることとする
 //dfss:エッジごとにかかる力
@@ -1773,7 +1814,8 @@ void CxLocalForceStep(float* dpos, float* dlen, float* dquat,float* dcurquat, fl
     float3 pos1 = make_float3(dpos[DIM * id], dpos[DIM * id + 1], dpos[DIM * id + 2]);
     float3 pos2 = make_float3(dpos[DIM * (id + 1)], dpos[DIM * (id + 1) + 1], dpos[DIM * (id + 1) + 2]);
 
-    float3 fss = make_float3(dfss[DIM * id], dfss[DIM * id + 1], dfss[DIM * id + 2]);
+    //Naiveな設定だと少し力が足りないようで，1.1倍程度にすると既存の髪型Assetsではちょうどいい
+    float3 fss = 1.1*make_float3(dfss[DIM * id], dfss[DIM * id + 1], dfss[DIM * id + 2]);//エッジの片側にかかる力がfssであるため，その2倍がエッジにかかる力としても良いかも
     float fs_Len = Length(fss);
 
     float l0 = dlen[id];
@@ -1797,7 +1839,8 @@ void CxLocalForceStep(float* dpos, float* dlen, float* dquat,float* dcurquat, fl
     //判別式を満たさない場合、定式的にkssを求める
     if (discrim < 0) {
         //2次式より求めており、本来+-sqrt(...)であるが、kss>0より、+のみを考える
-        tmp_ks = -dot(fss, pos1 - pos2) + 2 * fs_Len * Length(pos1 - pos2);
+        tmp_ks = -abs(dot(fss, pos1 - pos2)) + 2 * fs_Len * Length(pos1 - pos2);
+        printf("id %d discrim<0!!\n", id);
     }
     
     //伸び剛性を更新
@@ -1857,6 +1900,16 @@ float4 StretchingShearTorque(float4 qs, float3 pos1, float3 pos2, float len, flo
     torqueSS.z = 4 * (qs.z * qs.z * qs.z + qs.z * qs.x * qs.x + qs.z * qs.y * qs.y + qs.z * qs.w * qs.w - V.z * qs.z - V.x * qs.x - V.y * qs.y);//z
     torqueSS.w = 4 * (qs.w * qs.w * qs.w + qs.w * qs.x * qs.x + qs.w * qs.y * qs.y + qs.w * qs.z * qs.z - V.z * qs.w - V.x * qs.y + V.y * qs.x);//w
     torqueSS = 1.f / 2.f * kss * torqueSS;
+
+    /*float a = qs.x;
+    float b = qs.y;
+    float c = qs.z;
+    float d = qs.w;
+
+    torqueSS.x = 2 * (V.x - 2 * a * c - 2 * b * d) * (-2 * c) + 2 * (V.y + 2 * a * d - 2 * b * c) * (2 * d) + 2 * (V.z - d * d + a * a + b * b + c * c) * 2 * a;
+    torqueSS.y = 2 * (V.x - 2 * a * c - 2 * b * d) * (-2 * d) + 2 * (V.y + 2 * a * d - 2 * b * c) * (-2 * c) + 2 * (V.z - d * d + a * a + b * b + c * c) * 2 * b;
+    torqueSS.z = 2 * (V.x - 2 * a * c - 2 * b * d) * (-2 * a) + 2 * (V.y + 2 * a * d - 2 * b * c) * (-2 * b) + 2 * (V.z - d * d + a * a + b * b + c * c) * 2 * c;
+    torqueSS.w = 2 * (V.x - 2 * a * c - 2 * b * d) * (-2 * b) + 2 * (V.y + 2 * a * d - 2 * b * c) * (2 * a) + 2 * (V.z - d * d + a * a + b * b + c * c) * (-2 * d);*/
 
     return torqueSS;
 }
@@ -1964,11 +2017,15 @@ void CxGlobalTorqueStep(float* dpos, float* dquat, float* domega, float* dlen, f
     float4 init_kq_inv = QuatInverse(init_K * init_quat1);
 
     float4 init_torqueSS = StretchingShearTorque(init_quat1, init_pos1, init_pos2, init_l0, init_kss);
-    init_torqueSS = quatProduct(init_torqueSS, init_kq_inv);
+    init_torqueSS = 100*quatProduct(init_torqueSS, init_kq_inv);//適当に定数をかけてみる
 
     float4 init_Cur_Omega_Prev = quatProduct(quatConjugate(init_quat0), init_quat1);
-    float4 init_Rest_Omega_Prev = init_Cur_Omega_Prev - init_torqueSS;
+    float4 init_Rest_Omega_Prev = init_Cur_Omega_Prev - init_torqueSS; //(Appendixを見てtorqueSSを + に変更)
     
+    //printf("id %d init_torqueSS x:%f,y:%f,z:%f,w:%f\n", id, init_torqueSS.x, init_torqueSS.y, init_torqueSS.z, init_torqueSS.w);
+    //printf("id %d init_Cur_Omega_Prev x:%f,y:%f,z:%f,w:%f\n", id, init_Cur_Omega_Prev.x, init_Cur_Omega_Prev.y, init_Cur_Omega_Prev.z, init_Cur_Omega_Prev.w);
+    //printf("id %d init_Rest_Omega_Prev x:%f,y:%f,z:%f,w:%f\n", id, init_Rest_Omega_Prev.x, init_Rest_Omega_Prev.y, init_Rest_Omega_Prev.z, init_Rest_Omega_Prev.w);
+
     //init_Rest_Omega_Prev = quatConjugate(init_Rest_Omega_Prev);
     //ダルボーベクトルの方向を曲げねじれ制約のように求める必要があるが、ほぼ1であると推測できるため、1で扱う(s*Omegaをそのままダルボーベクトルの配列に入れる)
     domega[(last_edge - 1) * QUAT] = init_Rest_Omega_Prev.x;
@@ -1996,17 +2053,23 @@ void CxGlobalTorqueStep(float* dpos, float* dquat, float* domega, float* dlen, f
 
         //伸び・せん断制約のトルクを求める
         float4 torqueSS = StretchingShearTorque(quat1, pos1, pos2, l0, kss);
-        torqueSS = quatProduct(torqueSS, kq_inv);
+        torqueSS = 100*quatProduct(torqueSS, kq_inv);//100倍
 
         float4 Cur_Omega_Prev = quatProduct(quatConjugate(quat0), quat1);//現在のエッジとひとつ前のエッジのダルボーベクトル
         float4 Cur_Omega_Next = quatConjugate(quatProduct(quatConjugate(quat1), quat2));//現在のエッジと一つ際のエッジのダルボーベクトル
-        //交換法則で求める
-        Cur_Omega_Next = quatProduct(quatConjugate(quat2), quat1);
+        //交換法則で求める(計算結果は変わらなそう)
+        //Cur_Omega_Next = quatProduct(quatConjugate(quat2), quat1);
         
         float4 Rest_Omega_Next = make_float4(domega[i * QUAT], domega[i * QUAT + 1], domega[i * QUAT + 2], domega[i * QUAT + 3]);
         //最終的に求める基準ダルボーベクトル
-        float4 Rest_Omega_Prev = Cur_Omega_Next + Cur_Omega_Prev - Rest_Omega_Next - torqueSS;//ひとつ前のエッジとの間の基準ダルボーベクトル
+        float4 Rest_Omega_Prev = Cur_Omega_Next + Cur_Omega_Prev - Rest_Omega_Next - torqueSS;//ひとつ前のエッジとの間の基準ダルボーベクトル(Appendixを見てtorqueSSを+に変更)
         Rest_Omega_Prev = quatConjugate(Rest_Omega_Prev);
+        //結果を出力
+        //if (i == min + 1) {
+            //printf("id %d torqueSS x:%f,y:%f,z:%f,w:%f\n", id, torqueSS.x, torqueSS.y, torqueSS.z, torqueSS.w);
+            //printf("id %d Cur_Omega_Prev x:%f,y:%f,z:%f,w:%f\n", id, Cur_Omega_Prev.x, Cur_Omega_Prev.y, Cur_Omega_Prev.z, Cur_Omega_Prev.w);
+            //printf("id %d Rest_Omega_Prev x:%f,y:%f,z:%f,w:%f\n", id, Rest_Omega_Prev.x, Rest_Omega_Prev.y, Rest_Omega_Prev.z, Rest_Omega_Prev.w);
+        //}
 
         //ダルボーベクトルの方向を曲げねじれ制約のように求める必要があるが、ほぼ1であると推測できるため、1で扱う(s*Omegaをそのままダルボーベクトルの配列に入れる)
         domega[(i - 1) * QUAT] = Rest_Omega_Prev.x;
@@ -2022,10 +2085,13 @@ void CxGlobalTorqueStep(float* dpos, float* dquat, float* domega, float* dlen, f
 //bendK:曲げ剛性
 __device__ __host__
 float4 solveInverseRot(float4 cur_omega, float4 rest_omega, float& bendK) {
-    const float SAFETY_FACTOR = min(cur_omega.w, 0.002f);//0.00002f,0.002f
-
+    const float SAFETY_FACTOR = min(abs(cur_omega.w), 0.002f);//0.00002f,0.002f
+    //const float SAFETY_FACTOR = min(length(make_float3(cur_omega.x, cur_omega.y, cur_omega.z)), 0.2f);
+    
     rest_omega -= dot(rest_omega, cur_omega) * cur_omega;
     float4 Omega = -rest_omega / bendK;
+
+    //if (SAFETY_FACTOR > 0.2 + 1.0e-3 || SAFETY_FACTOR < 0.2 - 1.0e-3)printf("SAFETY_FACTOR %f\n", SAFETY_FACTOR);
 
     if (dot(Omega,Omega) > SAFETY_FACTOR * SAFETY_FACTOR) {//Length2をdotに置き換え
         bendK = Length(rest_omega) / SAFETY_FACTOR;
@@ -2368,3 +2434,29 @@ void CxQuatSet(float* dpos, float* dquat, int* dfix, int n) {
     dquat[QUAT * id + 3] = quat.w;
 }
 
+//内力によるトルクの計算をする
+__global__
+void CxCalcTorque(float* dpos,float* dmas,float* dquat, float* dfss,float* dlength,float* dkss, int* dfix,float3 gravity, int n) {
+    int id = blockDim.x * blockIdx.x + threadIdx.x;
+
+    if (id >= n - 1) return; // 粒子数を超えるスレッドIDのチェック(余りが出ないようにブロック数などが設定できるなら必要ない) 最後の粒子はスキップ
+    if (dfix[id] == 1 || dfix[id + 1] == 1) return;//最初の二つの粒子は固定点として扱う
+
+    float3 pos0 = make_float3(dpos[DIM * (id - 1)], dpos[DIM * (id - 1) + 1], dpos[DIM * (id - 1) + 2]);
+    float3 pos1 = make_float3(dpos[DIM * id], dpos[DIM * id + 1], dpos[DIM * id + 2]);
+    float3 mid = (pos0 + pos1) / 2.f;
+
+    float4 quat = make_float4(dquat[QUAT * id], dquat[QUAT * id + 1], dquat[QUAT * id + 2], dquat[QUAT * id + 3]);
+    float3 fss = make_float3(dfss[DIM * id], dfss[DIM * id + 1], dfss[DIM * id + 2]);
+    //姿勢とe3から0->1の方向ベクトルを求め，これは単位ベクトルなので，長さを求める必要がある．
+    float len = dlength[id];
+
+    float mass0 = dmas[id-1];
+    float mass1 = dmas[id];
+
+    float3 torque_calc = CalcNormalTorque(pos0, pos1, quat, fss, len, mass0, mass1, make_float3(0.f, -9.81, 0.f));
+    printf("id %d calcTorque x:%f,y:%f,z:%f\n", id, torque_calc.x, torque_calc.y, torque_calc.z);
+
+    float4 torque = StretchingShearTorque(quat, pos0, pos1, len, dkss[id]);
+    //printf("id %d StretchingShearTorque x:%f,y:%f,z:%f,w:%f\n",id, torque.x, torque.y, torque.z, torque.w);
+}

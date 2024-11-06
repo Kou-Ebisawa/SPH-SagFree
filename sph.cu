@@ -365,12 +365,12 @@ void CuXPBDConstraint(float* dpos,float* dmas, float* dlen, float* dkss,float* d
 		//全ての制約を同時に実行すると，衝突が発生するため，奇数と偶数に分けて実行する
 		//偶数番目のidを実行
 		CxStretchingShearConstraint << <grid, block >> > (dpos, dmas, dlen, dkss, dquat, dlamb_ss, dfix, dt, n, 0, i,example_flag);
-		CxBendTwistConstraint << <grid, block >> > (dquat, domega, dkbt, dlamb_bt,dlen, dfix, dt, n,0,i, example_flag);
+		CxBendTwistConstraint << <grid, block >> > (dmas,dquat, domega, dkbt, dlamb_bt,dlen, dfix, dt, n,0,i, example_flag);
 		//念のため，半分処理した時点で同期を挟む
 		cudaThreadSynchronize();
 		//奇数番目のidを実行
 		CxStretchingShearConstraint << <grid, block >> > (dpos, dmas, dlen, dkss, dquat, dlamb_ss, dfix, dt, n, 1, i, example_flag);
-		CxBendTwistConstraint << <grid, block >> > (dquat, domega, dkbt, dlamb_bt,dlen, dfix, dt, n, 1,i, example_flag);
+		CxBendTwistConstraint << <grid, block >> > (dmas,dquat, domega, dkbt, dlamb_bt,dlen, dfix, dt, n, 1,i, example_flag);
 		//念のため，同期を行う
 		cudaThreadSynchronize();
 	}
@@ -618,6 +618,14 @@ void CuQuatSet(float* dpos, float* dquat, int* dfix, int n) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
 	CxQuatSet << <grid, block >> > (dpos, dquat, dfix, n);
+	cudaThreadSynchronize();
+}
+
+//トルクを計算したい
+void CuCalcTorque(float* dpos,float* dmas, float* dquat, float* dfss, float* dlength,float* dkss, int* dfix, float3 gravity, int n) {
+	dim3 block, grid;
+	CuCalGridN(n, block, grid);
+	CxCalcTorque << <grid, block >> > (dpos, dmas, dquat, dfss, dlength, dkss, dfix, gravity, n);
 	cudaThreadSynchronize();
 }
 

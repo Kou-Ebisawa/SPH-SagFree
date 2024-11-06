@@ -217,7 +217,7 @@ void ScenePBD::Init(int argc, char* argv[])
 	//initCenterSpiralRod();
 	//initNaturalSpiralRod();
 	//initExampleRod();
-	initMoreRod();
+	initMoreRod(true);//SagFreeがされる
 }
 
 
@@ -455,8 +455,11 @@ void ScenePBD::ImGui(GLFWwindow* window)
 	//if (ImGui::Button("NaturalSpiral")) { initNaturalSpiralRod(); }
 	//実験的に毛髪を設定する際に利用
 	if (ImGui::Button("ExampleRod")) { initExampleRod(); }
-	//髪型を読み込む
-	if (ImGui::Button("MoreRod")) { initMoreRod(); }
+	//髪型を読み込みSagFree処理をする
+	if (ImGui::Button("MoreRod(With SagFree)")) { initMoreRod(true); }
+	//髪型を読み込むが，SagFreeをしない
+	if (ImGui::Button("MoreRod(Not SagFree)")) { initMoreRod(false); }
+
 	//風を設定
 	if (ImGui::Button("AddWind")) { ChangeWindPower(make_float3(10.f, 0.f, 0.0f)); }
 	//風を止める
@@ -595,7 +598,7 @@ bool ScenePBD::readObjFile(const char* filename,vector<glm::vec3> &PosArray,vect
 }
 
 //SPHの初期化
-void ScenePBD::initSPH(int max_particles,int num_elastic, bool use_bp)
+void ScenePBD::initSPH(int max_particles,int num_elastic,float mass, bool use_bp)
 {
 	// 描画スケール(PointSprite用)
 	float view_scale = 1.2 * m_winh / tanf(RX_FOV * 0.5f * (float)RX_PI / 180.0f);
@@ -732,9 +735,10 @@ void ScenePBD::initElasticbodies(int num_elasticbodies, int num_particles,float 
 //FixArray:固定点に連結するエッジのインデックスの配列(このエッジから新しい弾性体が始まる)
 //ks:伸び剛性
 //kbt:曲げ剛性
+//def_mass:質量
 //num_elastic:弾性体の数を返す
 //all_particle:合計の粒子数を返す
-void ScenePBD::initElasticFromObj(vector<glm::vec3> PosArray, vector<glm::ivec2> IndexArray, vector<int> FixArray,float ks,float kbt,int& num_elastic,int& all_particle) {
+void ScenePBD::initElasticFromObj(vector<glm::vec3> PosArray, vector<glm::ivec2> IndexArray, vector<int> FixArray,float ks,float kbt,float def_mass,int& num_elastic,int& all_particle) {
 	clearArray();
 	int num_elasticbodies = FixArray.size();
 	num_elastic = num_elasticbodies;
@@ -752,7 +756,7 @@ void ScenePBD::initElasticFromObj(vector<glm::vec3> PosArray, vector<glm::ivec2>
 
 	glm::vec3 center(0.0, 0.0, 0.0);
 	float rad = 0.25;
-	float mass = 5.0e-3;//5.0e-3
+	float mass = def_mass;
 	
 	int fix_index = 0;
 	for (int i = 0; i < num_elasticbodies; i++) {
@@ -891,7 +895,7 @@ void ScenePBD::XPBDParamsToDevice(int num_elasticbodies) {
 	g_sim->SetXPBD_Params(m_allnum, &Mass_array[0], &Length_array[0], &Kss_array[0], &Kbt_array[0], &Quat_array[0], &Darboux_array[0], &Fix_array[0],&Last_index[0]);
 }
 
-void ScenePBD::initMoreRod(void) {
+void ScenePBD::initMoreRod(bool sag_free_flag) {
 	switchanimation(false);
 
 	m_draw |= RXD_VERTEX;
@@ -922,11 +926,12 @@ void ScenePBD::initMoreRod(void) {
 			PosArray[i].z = -tmp;
 		}
 	}
-	initElasticFromObj(PosArray, IndexArray, FixArray, ks, kbt,num_elasticbodies,all_particles);
+	float mass = 1.0e-1;//5.0e-3
+	initElasticFromObj(PosArray, IndexArray, FixArray, ks, kbt,mass,num_elasticbodies,all_particles);
 	
 	m_picked = -1;
 	//SPH法の初期化
-	initSPH(all_particles,num_elasticbodies);//元はm_allnum(initElasticbodiesで設定)
+	initSPH(all_particles,num_elasticbodies,mass);//元はm_allnum(initElasticbodiesで設定)
 
 	//フラグをオンにしてみる
 	//g_sim->m_example_flag = true;
@@ -941,7 +946,7 @@ void ScenePBD::initMoreRod(void) {
 	XPBDParamsToDevice(num_elasticbodies);
 
 	//SagFree処理(GPU)
-	g_sim->SagFree();
+	if(sag_free_flag) g_sim->SagFree();
 
 	//ファイルにGPUに移したパラメータ出力
 	g_sim->OutputParticles("debug.txt");
@@ -970,9 +975,10 @@ void ScenePBD::initStraightRod(void)
 	initElasticbodies(num_elasticbodies, num_particles, ks, kbt, STRAIGHT);
 
 	m_picked = -1;
+	float mass = 1.0e-1;
 
 	//SPH法の設定
-	initSPH(m_allnum,num_elasticbodies);
+	initSPH(m_allnum,num_elasticbodies,mass);
 	initArray(m_allnum);
 	
 	XPBDtoSPH();
@@ -1003,7 +1009,8 @@ void ScenePBD::initCenterSpiralRod(void)
 
 	m_picked = -1;
 
-	initSPH(m_allnum,num_elasticbodies);
+	float mass = 1.0e-1;
+	initSPH(m_allnum,num_elasticbodies,mass);
 	initArray(m_allnum);
 
 	XPBDtoSPH();
@@ -1036,8 +1043,9 @@ void ScenePBD::initNaturalSpiralRod(void)
 	initElasticbodies(num_elasticbodies, num_particles, ks, kbt, NATURAL_SPIRAL);
 
 	m_picked = -1;
+	float mass = 1.0e-1;
 
-	initSPH(m_allnum,num_elasticbodies);
+	initSPH(m_allnum,num_elasticbodies,mass);
 	initArray(m_allnum);
 
 	XPBDtoSPH();
@@ -1055,8 +1063,8 @@ void ScenePBD::initExampleRod(void) {
 	
 	//剛性の設定
 	//実験用のシーン用
-	float ks = 120.f;
-	float kbt = 100.f;
+	float ks = 20.f;
+	float kbt = 20.f;
 
 	//パラメータ設定
 	//Shear&Stretching Constraint  w = 1.0 / (length); wq = 1.0 / (1.0e-5) * length;
@@ -1071,7 +1079,8 @@ void ScenePBD::initExampleRod(void) {
 
 	m_picked = -1;
 
-	initSPH(m_allnum,num_elasticbodies);
+	float mass = 1.0e-1;
+	initSPH(m_allnum,num_elasticbodies,mass);
 	initArray(m_allnum);
 
 	//SPHの結果を表示する際には，他と少し変える----
