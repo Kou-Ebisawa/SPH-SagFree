@@ -38,7 +38,7 @@ void CuSphIntegrateP(float* dpos, float* dvel, int* datt, int* dfix, int n);
 
 //海老沢追加--------------------------------------------------------------------------------
 //XPBDの制約
-void CuXPBDConstraint(float* dpos, float* dmas, float* dlen, float* dkss, float* dkbt,float* dquat,float* domega, float* dlamb_ss,float* dlamb_bt,int* dfix, float dt, int n,int iter,bool example_flag);
+void CuXPBDConstraint(float* dpos,float* dcurpos, float* dmas, float* dlen, float* dkss, float* dkbt,float* dquat,float* dcurquat,float* domega, float* dlamb_ss,float* dlamb_bt,int* dfix, float dt, int n,int iter,bool example_flag);
 //衝突制約
 void CuCollisionConstraint(float* dpos, float* dvel, int* dfix, float3 center, float rad, float dt, int n);
 //時間積分
@@ -79,6 +79,8 @@ void CuPbfConstraint(float* dpos, float* ddens, float* drestdens, float* dpbf_la
 void CuPbfExternalForces(float* dacc, int* datt, float3 power, int n);
 //摩擦制約
 void CuFrictionConstraint(float* dpos, float* dcurpos, float* drestdens, float* dvol, float* ddens, int* dfix, int n);
+//摩擦制約の後，姿勢を修正する
+void CuFrictionConstraint_withQuat(float* dpos, float* dcurpos, float* drestdens, float* dvol, float* ddens, float* dquat, float* dlen, int* dfix, int n);
 //2頂点から間のエッジのベクトルを求める
 void CuQuatSet(float* dpos, float* dquat, int* dfix, int n);
 //エッジごとのトルクを求める

@@ -354,7 +354,7 @@ void CuReorderDataAndFindCellStart(Cell cell, float* dpos, float* dvel, uint n)
 //n:粒子数
 //iter:反復回数
 //example_flag:形状によって，処理を一部変える
-void CuXPBDConstraint(float* dpos,float* dmas, float* dlen, float* dkss,float* dkbt, float* dquat, float* domega, float* dlamb_ss,float* dlamb_bt,int* dfix, float dt,int n,int iter,bool example_flag) {
+void CuXPBDConstraint(float* dpos,float* dcurpos,float* dmas, float* dlen, float* dkss,float* dkbt, float* dquat,float* dcurquat, float* domega, float* dlamb_ss,float* dlamb_bt,int* dfix, float dt,int n,int iter,bool example_flag) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
 	//XPBDの処理のために，λを0にする
@@ -364,13 +364,13 @@ void CuXPBDConstraint(float* dpos,float* dmas, float* dlen, float* dkss,float* d
 	for (int i = 0; i < iter; i++) {
 		//全ての制約を同時に実行すると，衝突が発生するため，奇数と偶数に分けて実行する
 		//偶数番目のidを実行
-		CxStretchingShearConstraint << <grid, block >> > (dpos, dmas, dlen, dkss, dquat, dlamb_ss, dfix, dt, n, 0, i,example_flag);
-		CxBendTwistConstraint << <grid, block >> > (dmas,dquat, domega, dkbt, dlamb_bt,dlen, dfix, dt, n,0,i, example_flag);
+		CxStretchingShearConstraint << <grid, block >> > (dpos, dcurpos, dmas, dlen, dkss, dquat, dcurquat, dlamb_ss, dfix, dt, n, 0, i, example_flag);
+		CxBendTwistConstraint << <grid, block >> > (dmas, dquat, dcurquat, domega, dkbt, dlamb_bt, dlen, dfix, dt, n, 0, i, example_flag);
 		//念のため，半分処理した時点で同期を挟む
 		cudaThreadSynchronize();
 		//奇数番目のidを実行
-		CxStretchingShearConstraint << <grid, block >> > (dpos, dmas, dlen, dkss, dquat, dlamb_ss, dfix, dt, n, 1, i, example_flag);
-		CxBendTwistConstraint << <grid, block >> > (dmas,dquat, domega, dkbt, dlamb_bt,dlen, dfix, dt, n, 1,i, example_flag);
+		CxStretchingShearConstraint << <grid, block >> > (dpos, dcurpos, dmas, dlen, dkss, dquat, dcurquat, dlamb_ss, dfix, dt, n, 1, i, example_flag);
+		CxBendTwistConstraint << <grid, block >> > (dmas, dquat, dcurquat, domega, dkbt, dlamb_bt, dlen, dfix, dt, n, 1, i, example_flag);
 		//念のため，同期を行う
 		cudaThreadSynchronize();
 	}
@@ -610,6 +610,14 @@ void CuFrictionConstraint(float* dpos, float* dcurpos, float* drestdens, float* 
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
 	CxFrictionConstraint << <grid, block >> > (dpos, dcurpos, drestdens, dvol, ddens, dfix, n);
+	cudaThreadSynchronize();
+}
+
+//摩擦制約の後，姿勢を修正する
+void CuFrictionConstraint_withQuat(float* dpos, float* dcurpos, float* drestdens, float* dvol, float* ddens, float* dquat, float* dlen, int* dfix, int n) {
+	dim3 block, grid;
+	CuCalGridN(n, block, grid);
+	CxFrictionConstraint_withQuat << <grid, block >> > (dpos, dcurpos, drestdens, dvol, ddens, dquat, dlen, dfix, n);
 	cudaThreadSynchronize();
 }
 

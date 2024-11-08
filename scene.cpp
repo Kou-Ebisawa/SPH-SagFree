@@ -903,7 +903,7 @@ void ScenePBD::initMoreRod(bool sag_free_flag) {
 
 	m_currentstep = 0;
 	float ks = 20.f;//伸び剛性
-	float kbt = 20.f;//曲げ剛性(20.fで形崩れる)
+	float kbt = 5.f;//曲げ剛性(20.fで形崩れる)
 
 	int num_elasticbodies = 10;//弾性体の数
 	int num_particles = 11;//弾性体一つ当たりの粒子数

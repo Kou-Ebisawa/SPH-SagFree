@@ -45,7 +45,7 @@ static int THREAD_NUM = 256;
 #define QUAT      4           //海老沢追加 四元数のサイズ
 #define VEL_EPSILON 1.0e-4    //海老沢追加 粒子を静止させるかどうかを判定
 #define ANGVEL_EPSILON 1.0e-6 //海老沢追加 回転速度を静止させるかどうかを判定
-#define MU 10000                //海老沢追加 静止摩擦係数
+#define MU 10000000                //海老沢追加 静止摩擦係数
 
 const float DEG_TO_RAD = 0.0174532925199432;	//! degree -> radian の変換係数(pi/180.0)
 const float RAD_TO_DEG = 57.295779513082320;	//! radian -> degree の変換係数(180.0/pi)
