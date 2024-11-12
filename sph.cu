@@ -365,14 +365,11 @@ void CuXPBDConstraint(float* dpos,float* dcurpos,float* dmas, float* dlen, float
 		//全ての制約を同時に実行すると，衝突が発生するため，奇数と偶数に分けて実行する
 		//偶数番目のidを実行
 		CxStretchingShearConstraint << <grid, block >> > (dpos, dcurpos, dmas, dlen, dkss, dquat, dcurquat, dlamb_ss, dfix, dt, n, 0, i, example_flag);
-		CxBendTwistConstraint << <grid, block >> > (dmas, dquat, dcurquat, domega, dkbt, dlamb_bt, dlen, dfix, dt, n, 0, i, example_flag);
-		//念のため，半分処理した時点で同期を挟む
-		cudaThreadSynchronize();
 		//奇数番目のidを実行
 		CxStretchingShearConstraint << <grid, block >> > (dpos, dcurpos, dmas, dlen, dkss, dquat, dcurquat, dlamb_ss, dfix, dt, n, 1, i, example_flag);
+		
+		CxBendTwistConstraint << <grid, block >> > (dmas, dquat, dcurquat, domega, dkbt, dlamb_bt, dlen, dfix, dt, n, 0, i, example_flag);
 		CxBendTwistConstraint << <grid, block >> > (dmas, dquat, dcurquat, domega, dkbt, dlamb_bt, dlen, dfix, dt, n, 1, i, example_flag);
-		//念のため，同期を行う
-		cudaThreadSynchronize();
 	}
 }
 

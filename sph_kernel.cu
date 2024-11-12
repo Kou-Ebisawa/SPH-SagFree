@@ -1823,12 +1823,12 @@ void CxGlobalForceStep(float* dfss,float* dmass,int* dlast_ind,float3 gravity,fl
         dfss[i * DIM] = -(mass * gravity.x - prev_fss.x);
         dfss[i * DIM + 1] = -(mass * gravity.y - prev_fss.y);
         dfss[i * DIM + 2] = -(mass * gravity.z - prev_fss.z);
-
-        // float3 dir_i = make_float3(0, -1, 0);
+        
+        //float3 dir_i = make_float3(0, -1, 0);
         //float3 dir_j = make_float3(0, -1, 0);
         //現在,dir_iとdir_jに意味はない
         //float3 friction_force = 0.5*calcFrictionForce(dir_i, dir_j, ddens, drestdens, dvol,id);
-
+        
         //摩擦を含めて考える
         /*dfss[i * DIM] = -(mass * gravity.x - prev_fss.x - friction_force.x);
         dfss[i * DIM + 1] = -(mass * gravity.y - prev_fss.y - friction_force.y);
@@ -1863,7 +1863,7 @@ void CxLocalForceStep(float* dpos, float* dlen, float* dquat,float* dcurquat, fl
     float3 pos2 = make_float3(dpos[DIM * (id + 1)], dpos[DIM * (id + 1) + 1], dpos[DIM * (id + 1) + 2]);
 
     //Naiveな設定だと少し力が足りないようで，1.1倍程度にすると既存の髪型Assetsではちょうどいい
-    float3 fss = 1.1*make_float3(dfss[DIM * id], dfss[DIM * id + 1], dfss[DIM * id + 2]);//エッジの片側にかかる力がfssであるため，その2倍がエッジにかかる力としても良いかも
+    float3 fss = 1.2*make_float3(dfss[DIM * id], dfss[DIM * id + 1], dfss[DIM * id + 2]);//エッジの片側にかかる力がfssであるため，その2倍がエッジにかかる力としても良いかも
     float fs_Len = Length(fss);
 
     float l0 = dlen[id];
@@ -1908,7 +1908,7 @@ void CxLocalForceStep(float* dpos, float* dlen, float* dquat,float* dcurquat, fl
     if (abs(l1 - l0) > abs(l2 - l0) && abs(l2) > 1.0e-10) rest_length = l2;
     else if (abs(l1) > 1.0e-10) rest_length = l1;
     else {
-        printf("Error Occured! in LocalTorqueStep!");
+        printf("Error Occured! in LocalForceStep!");
     }
 
     //姿勢の更新
@@ -1921,7 +1921,7 @@ void CxLocalForceStep(float* dpos, float* dlen, float* dquat,float* dcurquat, fl
     //姿勢ベクトルの確認
     float3 d3_from_qs = rotVecByQuat(e3, new_qs);
 
-    //力の確認用
+    //力の確認用(Eq.14の上では，-で定義されているが，これは+だと考えられる．)
     float3 new_Fss = (tmp_ks / rest_length) * ((pos1 - pos2) / rest_length + d3_from_qs);
 
     //printf("id %d old_quat x:%f,y:%f,z:%f,w:%f new_quat x:%f,y:%f,z:%f,w:%f\n", id, quat.x, quat.y, quat.z, quat.w, new_qs.x, new_qs.y, new_qs.z, new_qs.w);
@@ -1959,7 +1959,9 @@ float4 StretchingShearTorque(float4 qs, float3 pos1, float3 pos2, float len, flo
     torqueSS.x = 2 * (V.x - 2 * a * c - 2 * b * d) * (-2 * c) + 2 * (V.y + 2 * a * d - 2 * b * c) * (2 * d) + 2 * (V.z - d * d + a * a + b * b + c * c) * 2 * a;
     torqueSS.y = 2 * (V.x - 2 * a * c - 2 * b * d) * (-2 * d) + 2 * (V.y + 2 * a * d - 2 * b * c) * (-2 * c) + 2 * (V.z - d * d + a * a + b * b + c * c) * 2 * b;
     torqueSS.z = 2 * (V.x - 2 * a * c - 2 * b * d) * (-2 * a) + 2 * (V.y + 2 * a * d - 2 * b * c) * (-2 * b) + 2 * (V.z - d * d + a * a + b * b + c * c) * 2 * c;
-    torqueSS.w = 2 * (V.x - 2 * a * c - 2 * b * d) * (-2 * b) + 2 * (V.y + 2 * a * d - 2 * b * c) * (2 * a) + 2 * (V.z - d * d + a * a + b * b + c * c) * (-2 * d);*/
+    torqueSS.w = 2 * (V.x - 2 * a * c - 2 * b * d) * (-2 * b) + 2 * (V.y + 2 * a * d - 2 * b * c) * (2 * a) + 2 * (V.z - d * d + a * a + b * b + c * c) * (-2 * d);
+
+    torqueSS *= 1.f / 2.f * kss;*/
 
     return torqueSS;
 }
@@ -2067,10 +2069,10 @@ void CxGlobalTorqueStep(float* dpos, float* dquat, float* domega, float* dlen, f
     float4 init_kq_inv = QuatInverse(init_K * init_quat1);
 
     float4 init_torqueSS = StretchingShearTorque(init_quat1, init_pos1, init_pos2, init_l0, init_kss);
-    init_torqueSS = 25*quatProduct(init_torqueSS, init_kq_inv);//適当に定数をかけてみる
+    init_torqueSS = 32.5f*quatProduct(init_torqueSS, init_kq_inv);//適当に定数をかけてみる
 
     float4 init_Cur_Omega_Prev = quatProduct(quatConjugate(init_quat0), init_quat1);
-    float4 init_Rest_Omega_Prev = init_Cur_Omega_Prev - init_torqueSS; //(Appendixを見てtorqueSSを + に変更)
+    float4 init_Rest_Omega_Prev = init_Cur_Omega_Prev - init_torqueSS;
     
     //printf("id %d init_torqueSS x:%f,y:%f,z:%f,w:%f\n", id, init_torqueSS.x, init_torqueSS.y, init_torqueSS.z, init_torqueSS.w);
     //printf("id %d init_Cur_Omega_Prev x:%f,y:%f,z:%f,w:%f\n", id, init_Cur_Omega_Prev.x, init_Cur_Omega_Prev.y, init_Cur_Omega_Prev.z, init_Cur_Omega_Prev.w);
@@ -2082,11 +2084,6 @@ void CxGlobalTorqueStep(float* dpos, float* dquat, float* domega, float* dlen, f
     domega[(last_edge - 1) * QUAT + 1] = init_Rest_Omega_Prev.y;
     domega[(last_edge - 1) * QUAT + 2] = init_Rest_Omega_Prev.z;
     domega[(last_edge - 1) * QUAT + 3] = init_Rest_Omega_Prev.w;
-
-    //結果が正しいかを確認
-    //float4 form = init_K * init_quat1 * (init_Cur_Omega_Prev - init_Rest_Omega_Prev - init_torqueSS);
-    //if (length(form) > 1.0e-3) printf("id %d form x:%f,y:%f,z:%f,w:%f\n",id, form.x, form.y, form.z, form.w);
-    //printf("id %d init_Rest_Omega_Prev x:%f,y:%f,z:%f,w:%f\n", id, init_Rest_Omega_Prev.x, init_Rest_Omega_Prev.y, init_Rest_Omega_Prev.z, init_Rest_Omega_Prev.w);
     //-----------------------------------------------------------------------------------------------------------------------------
 
     //他のエッジの処理
@@ -2108,7 +2105,7 @@ void CxGlobalTorqueStep(float* dpos, float* dquat, float* domega, float* dlen, f
 
         //伸び・せん断制約のトルクを求める
         float4 torqueSS = StretchingShearTorque(quat1, pos1, pos2, l0, kss);
-        torqueSS = 25 * quatProduct(torqueSS, kq_inv);//100倍
+        torqueSS = 32.5f*quatProduct(torqueSS, kq_inv);//100倍
 
         float4 Cur_Omega_Prev = quatProduct(quatConjugate(quat0), quat1);//現在のエッジとひとつ前のエッジのダルボーベクトル
         float4 Cur_Omega_Next = quatConjugate(quatProduct(quatConjugate(quat1), quat2));//現在のエッジと一つ際のエッジのダルボーベクトル
@@ -2133,8 +2130,6 @@ void CxGlobalTorqueStep(float* dpos, float* dquat, float* domega, float* dlen, f
         domega[(i - 1) * QUAT + 3] = Rest_Omega_Prev.w;
     }
 }
-
-//GlobalTorqueStepの確認
 
 
 //LocalTorqueStepを解くのに使う
@@ -2389,7 +2384,7 @@ void CxFrictionConstraint(float* dpos, float* dcurpos,float* drestdens,float* dv
     float3 cur_pos_i = make_float3(dcurpos[sid * DIM], dcurpos[sid * DIM + 1], dcurpos[sid * DIM + 2]);
     //位置修正などによる移動量
     float3 v_i = pos_i - cur_pos_i;
-    //静止摩擦係数(動摩擦係数は静止摩擦係数の0.1倍とする)
+    //静止摩擦係数
     float mu = MU;
 
     // 粒子を中心として半径h内に含まれるグリッド(caclGridPos内で境界処理あり)
@@ -2490,6 +2485,7 @@ void CxFrictionConstraint_withQuat(float* dpos, float* dcurpos, float* drestdens
     //前ステップの位置
     float3 cur_pos_i = make_float3(dcurpos[sid * DIM], dcurpos[sid * DIM + 1], dcurpos[sid * DIM + 2]);
 
+    if (dfix[sid] == 1) return;
     //ひとつ前のquat----------------------
     float4 quat1 = make_float4(dquat[QUAT * (sid - 1)], dquat[QUAT * (sid - 1) + 1], dquat[QUAT * (sid - 1) + 2], dquat[QUAT * (sid - 1) + 3]);
     //一つ後のquat
@@ -2548,10 +2544,6 @@ void CxFrictionConstraint_withQuat(float* dpos, float* dcurpos, float* drestdens
 
                             float q = h * h - r * r;//(h^2-||rij||^2)
                             x_fric += m / ddens[sj] * MU * delxn * params.aw * q * q * q;//aw*q^3
-
-                            //printf("v_ij x:%f,y:%f,z:%f,r_ij x:%f,y:%f,z:%f\n", v_ij.x, v_ij.y, v_ij.z, r_ij.x, r_ij.y, r_ij.z);
-                            //printf("friction before x:%f y:%f z:%f\n", delxn.x, delxn.y, delxn.z);
-                            //printf("did\n");
                         }
                     }
                 }
@@ -2570,11 +2562,9 @@ void CxFrictionConstraint_withQuat(float* dpos, float* dcurpos, float* drestdens
         delta_x = -dir_i_fric;
     }
     else {//動摩擦力として扱うパターン
-        //おそらく問題あり
-        delta_x = -dir_i_fric * min(length(x_fric) / length(dir_i_fric), 1.f);//[Macklin 2014]を参考に適当に求める
-        //delta_x = -dir_i_fric * 0.1;
-        //delta_x = x_fric * 0.1;
-        delta_x = make_float3(0.f);
+        //delta_x = -dir_i_fric * min(length(x_fric) / length(dir_i_fric), 1.f);//[Macklin 2014]を参考に適当に求める
+        delta_x = -x_fric * min(MU / length(x_fric), 1.0f);
+        //delta_x = make_float3(0.f);
     }
 
     //位置修正による更新
@@ -2583,7 +2573,7 @@ void CxFrictionConstraint_withQuat(float* dpos, float* dcurpos, float* drestdens
     dpos[DIM * sid + 2] += delta_x.z;
 
     //伸び・せん断制約のΔx=Δλ/l0より，無理やり姿勢に還元する．上のエッジと下のエッジの両方に還元
-    //そのために，idを奇数と偶数に分ける必要あり
+    //そのために，本来sidを奇数と偶数に分ける必要あるが，読み出しから書き込みまでに処理が多いため，並列化しても大丈夫であろうと推測．
 
     //伸び・せん断制約でのΔλ
     float3 lambda = delta_x * len;

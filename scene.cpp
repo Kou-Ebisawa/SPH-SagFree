@@ -905,6 +905,7 @@ void ScenePBD::initMoreRod(bool sag_free_flag) {
 	float ks = 20.f;//伸び剛性
 	float kbt = 5.f;//曲げ剛性(20.fで形崩れる)
 
+	//後からobjファイル内で定義するため，この初期値に意味はない
 	int num_elasticbodies = 10;//弾性体の数
 	int num_particles = 11;//弾性体一つ当たりの粒子数
 	int all_particles = 0;

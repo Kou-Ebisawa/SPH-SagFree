@@ -458,17 +458,17 @@ bool SPH::Update(float dt, int step)
 
 	// 近傍探索用グリッドセルに粒子情報を格納(実際にはハッシュを計算しているだけで格納はしていない)
 	SetParticlesToCell(pos, m_d_vel, m_num_particles, h);
-
+	
 	//海老沢追加
 	//シンプルなsphかpbfかをここで決める
-	bool sph = true;
-	bool pbf = false;
+	bool sph = false;
+	bool pbf = true;
 
 	//海老沢追加
 	//速度，加速度が一定(VEL_EPSILON,ANGVEL_EPSILON)以下の場合，速度を切り捨てる
 	bool vel_control = true;
 	//-------------------------------------------------------------------------
-
+	
 	// CUDAカーネルによる粒子処理
 	CuSphDensity(m_d_rest_density,m_d_dens, m_d_vol, m_num_particles);	// 密度計算
 	if (sph) CuSphPressure(m_d_rest_density, m_d_pres, m_d_dens, m_num_particles);	// 圧力計算
@@ -476,7 +476,7 @@ bool SPH::Update(float dt, int step)
 	if (sph) CuSphForces(m_d_rest_density, m_d_acc, m_d_vel, m_d_dens, m_d_pres, m_d_vort, m_d_vol, m_d_attr, m_wind_power, m_num_particles);	// 粒子にかかる力(圧力項&外力項)の計算
 	//海老沢追加
 	if (pbf) CuPbfExternalForces(m_d_acc, m_d_attr, m_wind_power, m_num_particles);
-	m_method_visc = 0;
+	m_method_visc = 2;
 	if(m_method_visc == 1){	// WCSPHの論文での粘性項の計算．粘性項を粒子にかかる力として計算する
 		CuSphViscosityForces(m_d_rest_density,m_d_acc, m_d_vel, m_d_dens, m_d_vol, m_d_attr, m_num_particles);	// 粘性項の計算
 		CuSphIntegrate(pos, m_d_vel, m_d_acc, m_d_attr, m_d_fix,m_num_particles);	// 速度＆位置の更新(海老沢追加 fix)
@@ -518,6 +518,17 @@ bool SPH::Update(float dt, int step)
 	//PBDの伸びせん断制約(確認用)
 	//CuPBDStretchingConstraint(pos, m_d_mass, m_d_rest_length, m_d_kss, m_d_quat, m_d_fix, m_num_particles, iter);
 
+	//摩擦制約の実装--------------------------------------
+	SetParticlesToCell(pos, m_d_vel, m_num_particles, h);
+
+	//CuFrictionConstraint(pos, m_d_curpos, m_d_rest_density, m_d_vol, m_d_dens, m_d_fix, m_num_particles);
+	//摩擦制約の後，姿勢を修正する
+	CuFrictionConstraint_withQuat(pos, m_d_curpos, m_d_rest_density, m_d_vol, m_d_dens, m_d_quat, m_d_rest_length, m_d_fix, m_num_particles);
+
+	//摩擦によって動いた分，元の位置に姿勢を戻す(2頂点の位置に直接戻すだけではダメ)
+	//CuQuatSet(pos, m_d_quat, m_d_fix, m_num_particles);
+	//----------------------------------------------------
+
 	//時間積分---------------------------------------------------
 	//vel_controlで一定以下の速度を切り捨てるか判定
 	CuIntegrate(pos, m_d_curpos, m_d_vel, dt, m_num_particles, vel_control);
@@ -525,17 +536,6 @@ bool SPH::Update(float dt, int step)
 	//角加速度の積分
 	CuAngVelIntegrate(m_d_angvel, m_d_curquat, m_d_quat, m_d_fix, dt, m_num_particles, vel_control);
 	//-----------------------------------------------------------
-
-	//摩擦制約の実装--------------------------------------
-	SetParticlesToCell(pos, m_d_vel, m_num_particles, h);
-
-	//CuFrictionConstraint(pos, m_d_curpos, m_d_rest_density, m_d_vol, m_d_dens, m_d_fix, m_num_particles);
-	//摩擦制約の後，姿勢を修正する
-	CuFrictionConstraint(pos, m_d_curpos, m_d_rest_density, m_d_vol, m_d_dens, m_d_fix, m_num_particles);
-
-	//摩擦によって動いた分，元の位置に姿勢を戻す(2頂点の位置に直接戻すだけではダメ)
-	//CuQuatSet(pos, m_d_quat, m_d_fix, m_num_particles);
-	//----------------------------------------------------
 
 	//衝突制約
 	//球を動かす
