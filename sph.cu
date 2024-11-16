@@ -517,10 +517,10 @@ void CuRestTotalDens(float* drestdens,float dens, int n) {
 //last_index:毛髪ごとの最後の粒子のインデックスを格納
 //gravity:重力
 //num_elastic:ここでは，毛髪ごとに並列計算するため，毛髪の数を渡す
-void CuGlobalForceStep(float* dfss,float* dmass, int* last_index, float3 gravity,float* ddens,float* drestdens,float* dvol, int num_elastic) {
+void CuGlobalForceStep(float* dpos,float* dfss,float* dmass, int* last_index, float3 gravity,float* ddens,float* drestdens,float* dvol, int num_elastic) {
 	dim3 block, grid;
 	CuCalGridN(num_elastic, block, grid);
-	CxGlobalForceStep << <grid, block >> > (dfss, dmass, last_index, gravity, ddens, drestdens, dvol, num_elastic);
+	CxGlobalForceStep << <grid, block >> > (dpos,dfss, dmass, last_index, gravity, ddens, drestdens, dvol, num_elastic);
 	cudaThreadSynchronize();
 }
 
@@ -606,7 +606,10 @@ void CuPbfExternalForces(float* dacc, int* datt, float3 power, int n) {
 void CuFrictionConstraint(float* dpos, float* dcurpos, float* drestdens, float* dvol, float* ddens, int* dfix, int n) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
-	CxFrictionConstraint << <grid, block >> > (dpos, dcurpos, drestdens, dvol, ddens, dfix, n);
+	//各粒子との摩擦力を合計した後，静止摩擦かどうかを判定
+	//CxFrictionConstraint << <grid, block >> > (dpos, dcurpos, drestdens, dvol, ddens, dfix, n);
+	//各粒子と静止摩擦かを判定した後，合計
+	CxFrictionAllParticlesConstraint << <grid, block >> > (dpos, dcurpos, drestdens, dvol, ddens, dfix, n);
 	cudaThreadSynchronize();
 }
 

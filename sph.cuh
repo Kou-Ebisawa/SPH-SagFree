@@ -64,7 +64,7 @@ void CuRestTotalDens(float* drestdens,float dens, int n);
 
 //SagFree処理-------
 //グローバルフォースステップ
-void CuGlobalForceStep(float* dfss, float* dmass, int* dlast_index, float3 gravity, float* ddens, float* drestdens, float* dvol, int num_elastic);
+void CuGlobalForceStep(float* dpos,float* dfss, float* dmass, int* dlast_index, float3 gravity, float* ddens, float* drestdens, float* dvol, int num_elastic);
 //ローカルフォースステップ
 void CuLocalForceStep(float* dpos, float* dlen, float* dquat,float* dcurquat, float* dkss, float* dfss, int* dfix, int n);
 //グローバルトルクステップ(Videoを参考にした方)

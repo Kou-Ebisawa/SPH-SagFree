@@ -298,7 +298,7 @@ void SPH::Allocate(int max_particles)
 void SPH::SagFree(void) {
 	float* pos = (float*)CuMapGLBufferObject(&m_cgr_pos);
 
-	CuGlobalForceStep(m_d_fss, m_d_mass, m_d_last_index, make_float3(0, -9.81, 0), m_d_dens, m_d_rest_density, m_d_vol, m_numElastic);
+	CuGlobalForceStep(pos,m_d_fss, m_d_mass, m_d_last_index, make_float3(0, -9.81, 0), m_d_dens, m_d_rest_density, m_d_vol, m_numElastic);
 
 	CuLocalForceStep(pos, m_d_rest_length, m_d_quat,m_d_curquat, m_d_kss, m_d_fss, m_d_fix, m_num_particles);
 	//トルクの計算
@@ -461,8 +461,8 @@ bool SPH::Update(float dt, int step)
 	
 	//海老沢追加
 	//シンプルなsphかpbfかをここで決める
-	bool sph = false;
-	bool pbf = true;
+	bool sph = true;
+	bool pbf = false;
 
 	//海老沢追加
 	//速度，加速度が一定(VEL_EPSILON,ANGVEL_EPSILON)以下の場合，速度を切り捨てる
@@ -521,9 +521,9 @@ bool SPH::Update(float dt, int step)
 	//摩擦制約の実装--------------------------------------
 	SetParticlesToCell(pos, m_d_vel, m_num_particles, h);
 
-	//CuFrictionConstraint(pos, m_d_curpos, m_d_rest_density, m_d_vol, m_d_dens, m_d_fix, m_num_particles);
+	CuFrictionConstraint(pos, m_d_curpos, m_d_rest_density, m_d_vol, m_d_dens, m_d_fix, m_num_particles);
 	//摩擦制約の後，姿勢を修正する
-	CuFrictionConstraint_withQuat(pos, m_d_curpos, m_d_rest_density, m_d_vol, m_d_dens, m_d_quat, m_d_rest_length, m_d_fix, m_num_particles);
+	//CuFrictionConstraint_withQuat(pos, m_d_curpos, m_d_rest_density, m_d_vol, m_d_dens, m_d_quat, m_d_rest_length, m_d_fix, m_num_particles);
 
 	//摩擦によって動いた分，元の位置に姿勢を戻す(2頂点の位置に直接戻すだけではダメ)
 	//CuQuatSet(pos, m_d_quat, m_d_fix, m_num_particles);
