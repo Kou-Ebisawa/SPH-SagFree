@@ -1930,10 +1930,10 @@ void CxLocalForceStep(float* dpos, float* dlen, float* dquat,float* dcurquat, fl
     //基準長の更新
     dlen[id] = rest_length;
     //姿勢の更新
-    /*dquat[id * QUAT] = dcurquat[id * QUAT] = new_qs.x;
+    dquat[id * QUAT] = dcurquat[id * QUAT] = new_qs.x;
     dquat[id * QUAT + 1] = dcurquat[id * QUAT + 1] = new_qs.y;
     dquat[id * QUAT + 2] = dcurquat[id * QUAT + 2] = new_qs.z;
-    dquat[id * QUAT + 3] = dcurquat[id * QUAT + 3] = new_qs.w;*/
+    dquat[id * QUAT + 3] = dcurquat[id * QUAT + 3] = new_qs.w;
 }
 
 //伸び・せん断制約のトルクを求める
