@@ -62,6 +62,15 @@ public:
 	 */
 	bool Save(string file_name, const vector<glm::vec3> &vrts, const vector<glm::vec3> &vnms, const vector<rxFace> &plys, const rxMTL &mats);
 
+	//海老沢追加
+	/*
+	髪の毛の表示に必要最低限なOBJファイルの書き込み
+	file_name ファイル名
+	vrts 頂点座標
+	edges エッジを構成するインデックス配列
+	*/
+	bool HairObjSave(string file_name, const vector<glm::vec3>& vrts, const vector<rxEdge> edges);
+
 	//! 材質リストの取得
 	rxMTL GetMaterials(void){ return m_mapMaterials; }
 
@@ -319,6 +328,59 @@ inline bool rxOBJ::Save(string file_name,
 
 	return true;
 }
+
+//海老沢追加
+//ソートに用いる
+//inline bool edge_idx_compare(glm::ivec2 e1 , glm::ivec2  e2) { return e1.x < e2.x; }
+
+//海老沢追加
+/*
+髪の毛の表示に必要最低限なOBJファイルの書き込み
+file_name ファイル名
+vrts 頂点座標
+edges エッジを構成するインデックス配列
+*/
+inline bool rxOBJ::HairObjSave(string file_name, const vector<glm::vec3>& vrts, const vector<rxEdge> edges) {
+	ofstream file;
+
+	file.open(file_name.c_str());
+	if (!file || !file.is_open() || file.bad() || file.fail()) {
+		cout << "rxOBJ::Save : Invalid file specified" << endl;
+		return false;
+	}
+
+	// 頂点(v)
+	int nv = (int)vrts.size();
+	for (int i = 0; i < nv; ++i) {
+		file << "v " << Vec3ToString(glm::vec3(vrts[i])) << endl;
+	}
+
+	//エッジ
+	vector<glm::ivec2> edge_idx;//エッジを構成する二つのエッジを保持
+	//エッジを構成する粒子のインデックスをivec(small,large)の形で保持
+	int ne = (int)edges.size();
+	for (int i = 0; i < ne; i++) {
+		//元の値がインデックスなので+1しておく
+		int v1 = edges[i].v[0] + 1;
+		int v2 = edges[i].v[1] + 1;
+		if (v1 < v2) {
+			edge_idx.push_back(glm::ivec2(v1, v2));
+		}
+		else {
+			edge_idx.push_back(glm::ivec2(v2, v1));
+		}
+	}
+
+	//ソート処理が必要
+	std::sort(edge_idx.begin(), edge_idx.end(), edge_idx_compare);
+
+	//ファイルへの書き出し
+	for (int i = 0; i < edge_idx.size(); i++) {
+		file << "l " << edge_idx[i].x << " " << edge_idx[i].y << endl;
+	}
+	return true;
+}
+
 
 
 /*!

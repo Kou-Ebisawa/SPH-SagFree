@@ -307,8 +307,9 @@ void CxSphVorticity(float* dvort, float* dvel, float* ddens, float* dvol, int* d
  * @param[in] n 粒子数
  */
 //海老沢power追加
+//海老沢dfss追加
 __global__ 
-void CxSphForces(float* drestdens,float* dacc, float* dvel, float* ddens, float* dpres, float* dvort, float* dvol, int* datt,float3 power, int n)
+void CxSphForces(float* drestdens,float* dacc, float* dvel, float* ddens, float* dpres, float* dvort, float* dvol, int* datt,float3 power,float* dfss, int n)
 {
     // グリッド,ブロック内のスレッド位置を粒子インデックスとする
     int id = blockDim.x * blockIdx.x + threadIdx.x;
@@ -387,7 +388,18 @@ void CxSphForces(float* drestdens,float* dacc, float* dvel, float* ddens, float*
             }
         }
     }
-
+    //海老沢11/16追加-------------------------------
+    float m = rest_dens * dvol[id];
+    //printf("mass:%f\n", m);
+    float3 fss0 = make_float3(dfss[(id - 1) * DIM], dfss[(id - 1) * DIM + 1], dfss[(id - 1) * DIM + 2]);
+    float3 fss1 = make_float3(dfss[id * DIM], dfss[id * DIM + 1], dfss[id * DIM + 2]);
+    float3 edge_power = (fss0 - fss1);
+    if (length(edge_power) > 1.0e3) printf("edge_power x:%f,y:%f,z:%f\n", edge_power.x, edge_power.y, edge_power.z);
+    edge_power.y = 0.f;
+    //power -= edge_power*0.01;
+    //f /= m;
+    //----------------------------------------------
+    
     // 重力
     f += params.gravity+power;
     //f += power;
@@ -1540,9 +1552,10 @@ void CxAngVelIntegrate(float* dangvel,float* dcurquat, float* dquat,int* dfix,fl
 //dpos:位置
 //dRestDens:粒子ごとに設定する基準密度
 //dvol:体積
+//dmas:質量
 //n:粒子数
 __global__
-void CxRestDensSet(float* dpos,float* dRestDens,float* dvol,int n) {
+void CxRestDensSet(float* dpos,float* dRestDens,float* dvol, float*dmas,int n) {
     // グリッド,ブロック内のスレッド位置を粒子インデックスとする
     int id = blockDim.x * blockIdx.x + threadIdx.x;
     if (id >= n) return; // 粒子数を超えるスレッドIDのチェック(余りが出ないようにブロック数などが設定できるなら必要ない)
@@ -1596,6 +1609,10 @@ void CxRestDensSet(float* dpos,float* dRestDens,float* dvol,int n) {
     //最低限の密度を設定
     //dRestDens[sid] = fmaxf(dens,rest_dens);//出村さんの設定方法
     dRestDens[sid] = dens;
+
+    //11/16
+    //仮想体積の設定
+    //dvol[sid] = dmas[sid] / dens;
 }
 
 //一律の基準となる密度の設定
@@ -1799,6 +1816,7 @@ float3 CalcNormalTorque(float3 pos0, float3 pos1, float4 quat, float3 fss, float
 
 //グローバルフォースステップ
 //ひとまず摩擦項を考えずに、単純に重力から求めることとする
+//エッジを基準に問題を解く
 //dfss:エッジごとにかかる力
 //dmass:質量
 //last_index:毛髪ごとの最後の粒子のインデックスを格納
@@ -1815,7 +1833,12 @@ void CxGlobalForceStep(float* dpos,float* dfss,float* dmass,int* dlast_ind,float
     else min = dlast_ind[id - 1] + 2;//固定点に隣接するエッジは計算に含まない
     int max = dlast_ind[id] - 1;
     for (int i = max; i > min - 1; i--) {//i=0の時は力0
-        float mass = dmass[i];
+        float mass = dmass[i+1];
+
+        float3 pos0 = make_float3(dpos[i * DIM], dpos[i * DIM + 1], dpos[i * DIM + 2]);
+        float3 pos1 = make_float3(dpos[(i + 1) * DIM], dpos[(i + 1) * DIM + 1], dpos[(i + 1) * DIM + 2]);
+
+        float3 dir = normalize(pos1 - pos0);
 
         float3 prev_fss;
         if (i == max) prev_fss = make_float3(0.f);
@@ -1825,6 +1848,15 @@ void CxGlobalForceStep(float* dpos,float* dfss,float* dmass,int* dlast_ind,float
         dfss[i * DIM + 1] = -(mass * gravity.y - prev_fss.y);
         dfss[i * DIM + 2] = -(mass * gravity.z - prev_fss.z);
         
+        //11/16追加
+        //エッジの方向にのみ引っ張ってみる--------------------
+       /* float a = -(mass * gravity.y - prev_fss.y) / dir.y;
+
+        dfss[i * DIM] = a * dir.x;
+        dfss[i * DIM + 1] = a * dir.y;
+        dfss[i * DIM + 2] = a * dir.z;*/
+        //----------------------------------------------------
+
         //float3 dir_i = make_float3(0, -1, 0);
         //float3 dir_j = make_float3(0, -1, 0);
         //現在,dir_iとdir_jに意味はない
@@ -1863,8 +1895,8 @@ void CxLocalForceStep(float* dpos, float* dlen, float* dquat,float* dcurquat, fl
     float3 pos1 = make_float3(dpos[DIM * id], dpos[DIM * id + 1], dpos[DIM * id + 2]);
     float3 pos2 = make_float3(dpos[DIM * (id + 1)], dpos[DIM * (id + 1) + 1], dpos[DIM * (id + 1) + 2]);
 
-    //Naiveな設定だと少し力が足りないようで，1.1倍程度にすると既存の髪型Assetsではちょうどいい
-    float3 fss = make_float3(dfss[DIM * id], dfss[DIM * id + 1], dfss[DIM * id + 2]);//エッジの片側にかかる力がfssであるため，その2倍がエッジにかかる力としても良いかも
+    float3 fss = make_float3(dfss[DIM * id], dfss[DIM * id + 1], dfss[DIM * id + 2]);
+
     float fs_Len = Length(fss);
 
     float l0 = dlen[id];
@@ -1922,7 +1954,7 @@ void CxLocalForceStep(float* dpos, float* dlen, float* dquat,float* dcurquat, fl
     //姿勢ベクトルの確認
     float3 d3_from_qs = rotVecByQuat(e3, new_qs);
 
-    //力の確認用(Eq.14の上では，-で定義されているが，これは+だと考えられる．)
+    //力の確認用(Eq.14の上では，ds3が-で定義されているが，これは+だと考えられる．)
     float3 new_Fss = (tmp_ks / rest_length) * ((pos1 - pos2) / rest_length + d3_from_qs);
 
     //printf("id %d old_quat x:%f,y:%f,z:%f,w:%f new_quat x:%f,y:%f,z:%f,w:%f\n", id, quat.x, quat.y, quat.z, quat.w, new_qs.x, new_qs.y, new_qs.z, new_qs.w);
@@ -2066,14 +2098,11 @@ void CxGlobalTorqueStep(float* dpos, float* dquat, float* domega, float* dlen, f
     float init_kss = dkss[last_edge];
     float init_kbt = dkbt[last_edge];
 
-    //torqueSSに適当なCoeffをかける
-    float Coeff = 0.5;
-
     float init_K = init_kbt;
     float4 init_kq_inv = QuatInverse(init_K * init_quat1);
 
     float4 init_torqueSS = StretchingShearTorque(init_quat1, init_pos1, init_pos2, init_l0, init_kss);
-    init_torqueSS = Coeff*quatProduct(init_torqueSS, init_kq_inv);//適当に定数をかけてみる
+    init_torqueSS = quatProduct(init_torqueSS, init_kq_inv);//適当に定数をかけてみる
 
     float4 init_Cur_Omega_Prev = quatProduct(quatConjugate(init_quat0), init_quat1);
     float4 init_Rest_Omega_Prev = init_Cur_Omega_Prev - init_torqueSS;
@@ -2109,7 +2138,7 @@ void CxGlobalTorqueStep(float* dpos, float* dquat, float* domega, float* dlen, f
 
         //伸び・せん断制約のトルクを求める
         float4 torqueSS = StretchingShearTorque(quat1, pos1, pos2, l0, kss);
-        torqueSS = Coeff*quatProduct(torqueSS, kq_inv);//100倍
+        torqueSS = quatProduct(torqueSS, kq_inv);//100倍
 
         float4 Cur_Omega_Prev = quatProduct(quatConjugate(quat0), quat1);//現在のエッジとひとつ前のエッジのダルボーベクトル
         float4 Cur_Omega_Next = quatConjugate(quatProduct(quatConjugate(quat1), quat2));//現在のエッジと一つ際のエッジのダルボーベクトル
@@ -2135,6 +2164,95 @@ void CxGlobalTorqueStep(float* dpos, float* dquat, float* domega, float* dlen, f
     }
 }
 
+//今までとは逆に上から解くようにする
+//
+__global__
+void CxGlobalTorqueStep_Upstair(float* dpos, float* dquat, float* domega, float* dlen, float* dkss, float* dkbt, int* dfix, int* dlast_index, int n) {
+    int id = blockDim.x * blockIdx.x + threadIdx.x;
+
+    if (id >= n) return; // 粒子数を超えるスレッドIDのチェック(余りが出ないようにブロック数などが設定できるなら必要ない) 最後の粒子はスキップ
+    int last_edge = dlast_index[id] - 1;//最後の粒子-1が最後のエッジ
+    int min;
+    if (id == 0) min = 1;
+    else min = dlast_index[id - 1] + 2;//最初の粒子
+
+    //一番下のエッジ(i==last_edge)の処理は他と違い、一つのみの基準ダルボーベクトルが関わる。一度きりなので、ループを使わずに書くが，処理は以降のループとほぼ同じ
+    float3 init_pos1 = make_float3(dpos[min * DIM], dpos[min * DIM + 1], dpos[min * DIM + 2]);
+    float3 init_pos2 = make_float3(dpos[(min + 1) * DIM], dpos[(min + 1) * DIM + 1], dpos[(min + 1) * DIM + 2]);
+
+    float4 init_quat0 = make_float4(dquat[(min - 1) * QUAT], dquat[(min - 1) * QUAT + 1], dquat[(min - 1) * QUAT + 2], dquat[(min - 1) * QUAT + 3]);
+    float4 init_quat1 = make_float4(dquat[min * QUAT], dquat[min * QUAT + 1], dquat[min * QUAT + 2], dquat[min * QUAT + 3]);
+
+    float init_l0 = dlen[min];
+    float init_kss = dkss[min];
+    float init_kbt = dkbt[min];
+
+    float init_K = init_kbt;
+    float4 init_kq_inv = QuatInverse(init_K * init_quat1);
+
+    float4 init_torqueSS = StretchingShearTorque(init_quat1, init_pos1, init_pos2, init_l0, init_kss);
+    init_torqueSS = quatProduct(init_torqueSS, init_kq_inv);//適当に定数をかけてみる
+
+    float4 init_Cur_Omega_Prev = quatProduct(quatConjugate(init_quat0), init_quat1);
+    float4 init_Rest_Omega_Prev = init_Cur_Omega_Prev - init_torqueSS;
+
+    //printf("id %d init_torqueSS x:%f,y:%f,z:%f,w:%f\n", id, init_torqueSS.x, init_torqueSS.y, init_torqueSS.z, init_torqueSS.w);
+    //printf("id %d init_Cur_Omega_Prev x:%f,y:%f,z:%f,w:%f\n", id, init_Cur_Omega_Prev.x, init_Cur_Omega_Prev.y, init_Cur_Omega_Prev.z, init_Cur_Omega_Prev.w);
+    //printf("id %d init_Rest_Omega_Prev x:%f,y:%f,z:%f,w:%f\n", id, init_Rest_Omega_Prev.x, init_Rest_Omega_Prev.y, init_Rest_Omega_Prev.z, init_Rest_Omega_Prev.w);
+
+    //init_Rest_Omega_Prev = quatConjugate(init_Rest_Omega_Prev);
+    //ダルボーベクトルの方向を曲げねじれ制約のように求める必要があるが、ほぼ1であると推測できるため、1で扱う(s*Omegaをそのままダルボーベクトルの配列に入れる)
+    domega[min * QUAT] = init_Rest_Omega_Prev.x;
+    domega[min * QUAT + 1] = init_Rest_Omega_Prev.y;
+    domega[min * QUAT + 2] = init_Rest_Omega_Prev.z;
+    domega[min * QUAT + 3] = init_Rest_Omega_Prev.w;
+    //-----------------------------------------------------------------------------------------------------------------------------
+
+    //他のエッジの処理
+    for (int i = min+1; i < last_edge-1; i++) {//iのひとつ前の基準ダルボーベクトルを求める
+        float3 pos1 = make_float3(dpos[i * DIM], dpos[i * DIM + 1], dpos[i * DIM + 2]);
+        float3 pos2 = make_float3(dpos[(i + 1) * DIM], dpos[(i + 1) * DIM + 1], dpos[(i + 1) * DIM + 2]);
+
+        float4 quat0 = make_float4(dquat[(i - 1) * QUAT], dquat[(i - 1) * QUAT + 1], dquat[(i - 1) * QUAT + 2], dquat[(i - 1) * QUAT + 3]);
+        float4 quat1 = make_float4(dquat[i * QUAT], dquat[i * QUAT + 1], dquat[i * QUAT + 2], dquat[i * QUAT + 3]);
+        float4 quat2 = make_float4(dquat[(i + 1) * QUAT], dquat[(i + 1) * QUAT + 1], dquat[(i + 1) * QUAT + 2], dquat[(i + 1) * QUAT + 3]);
+
+        float l0 = dlen[i];
+        float kss = dkss[i];
+        float kbt = dkbt[i];
+
+        //伸び・せん断制約のトルクをこれで割る
+        float K = kbt;
+        float4 kq_inv = QuatInverse(K * quat1);
+
+        //伸び・せん断制約のトルクを求める
+        float4 torqueSS = StretchingShearTorque(quat1, pos1, pos2, l0, kss);
+        torqueSS = quatProduct(torqueSS, kq_inv);
+
+        float4 Cur_Omega_Prev = quatProduct(quatConjugate(quat0), quat1);//現在のエッジとひとつ前のエッジのダルボーベクトル
+        float4 Cur_Omega_Next = quatConjugate(quatProduct(quatConjugate(quat1), quat2));//現在のエッジと一つ際のエッジのダルボーベクトル
+        //交換法則で求める(計算結果は変わらなそう)
+        //Cur_Omega_Next = quatProduct(quatConjugate(quat2), quat1);
+
+        float4 Rest_Omega_Next = make_float4(domega[(i - 1) * QUAT], domega[(i - 1) * QUAT + 1], domega[(i - 1) * QUAT + 2], domega[(i - 1) * QUAT + 3]);
+        //最終的に求める基準ダルボーベクトル
+        float4 Rest_Omega_Prev = Cur_Omega_Next + Cur_Omega_Prev - Rest_Omega_Next - torqueSS;//ひとつ前のエッジとの間の基準ダルボーベクトル(Appendixを見てtorqueSSを+に変更)
+        Rest_Omega_Prev = quatConjugate(Rest_Omega_Prev);
+        //結果を出力
+        /*if (i == min + 1) {
+            printf("id %d torqueSS x:%f,y:%f,z:%f,w:%f\n", id, torqueSS.x, torqueSS.y, torqueSS.z, torqueSS.w);
+            printf("id %d Cur_Omega_Prev x:%f,y:%f,z:%f,w:%f\n", id, Cur_Omega_Prev.x, Cur_Omega_Prev.y, Cur_Omega_Prev.z, Cur_Omega_Prev.w);
+            printf("id %d Rest_Omega_Prev x:%f,y:%f,z:%f,w:%f\n", id, Rest_Omega_Prev.x, Rest_Omega_Prev.y, Rest_Omega_Prev.z, Rest_Omega_Prev.w);
+        }*/
+
+        //ダルボーベクトルの方向を曲げねじれ制約のように求める必要があるが、ほぼ1であると推測できるため、1で扱う(s*Omegaをそのままダルボーベクトルの配列に入れる)
+        domega[i * QUAT] = Rest_Omega_Prev.x;
+        domega[i * QUAT + 1] = Rest_Omega_Prev.y;
+        domega[i * QUAT + 2] = Rest_Omega_Prev.z;
+        domega[i * QUAT + 3] = Rest_Omega_Prev.w;
+    }
+}
+
 
 //LocalTorqueStepを解くのに使う
 //cur_omega:現在の二つの姿勢から求めるダルボーベクトル
@@ -2151,8 +2269,6 @@ float4 solveInverseRot(float4 cur_omega, float4 rest_omega, float& bendK) {
     //printf("omega_orth length %f\n", length(rest_omega));
 
     float4 Omega = -rest_omega / bendK;
-
-    printf("Omega x:%f,y:%f,z:%f,w:%f\n", Omega.x, Omega.y, Omega.z, Omega.w);
 
     //if (SAFETY_FACTOR > 0.2 + 1.0e-3 || SAFETY_FACTOR < 0.2 - 1.0e-3)printf("SAFETY_FACTOR %f\n", SAFETY_FACTOR);
 
@@ -2371,8 +2487,15 @@ void CxPbfExternalForces(float* dacc, int* datt, float3 power, int n) {
 
 //摩擦制約の実装
 //摩擦制約はとりあえず，速度更新の際に，一度のみ行うように設定する．
-//反復する場合にはXPBDにしないと，反復に依存して修正量が変化すると考えられる
+//反復する場合にはXPBDにしないと，反復に依存して修正量が変化すると考えられるが，摩擦制約は制約条件Cをもつわけではない．
 //周辺粒子が大事なので，Sortされた位置を利用する
+//dpos:位置
+//dcurpos:位置修正前の位置
+//drestdens:基準密度
+//dvol:体積(質量を仮想質量からρ_0*Vで定義)
+//ddens:現在の密度
+//dfix:dfix:固定点(毛髪の開始点)を示す配列(1なら固定点,0ならそれ以外)
+//n:粒子数
 __global__
 void CxFrictionConstraint(float* dpos, float* dcurpos,float* drestdens,float* dvol,float*ddens, int* dfix, int n) {
     // グリッド,ブロック内のスレッド位置を粒子インデックスとする
@@ -2439,10 +2562,6 @@ void CxFrictionConstraint(float* dpos, float* dcurpos,float* drestdens,float* dv
 
                             float q = h * h - r * r;//(h^2-||rij||^2)
                             x_fric += m / ddens[sj] * MU * delxn * params.aw * q * q * q;//aw*q^3
-
-                            //printf("v_ij x:%f,y:%f,z:%f,r_ij x:%f,y:%f,z:%f\n", v_ij.x, v_ij.y, v_ij.z, r_ij.x, r_ij.y, r_ij.z);
-                            //printf("friction before x:%f y:%f z:%f\n", delxn.x, delxn.y, delxn.z);
-                            //printf("did\n");
                         }
                     }
                 }
@@ -2604,7 +2723,17 @@ void CxFrictionConstraint_withQuat(float* dpos, float* dcurpos, float* drestdens
     }
 }
 
-//個々の粒子との摩擦力を考える
+//個々の粒子との摩擦を考え，個々に静止摩擦を考える
+//摩擦制約はとりあえず，速度更新の際に，一度のみ行うように設定する．
+//反復する場合にはXPBDにしないと，反復に依存して修正量が変化すると考えられるが，摩擦制約は制約条件Cをもつわけではない．
+//周辺粒子が大事なので，Sortされた位置を利用する
+//dpos:位置
+//dcurpos:位置修正前の位置
+//drestdens:基準密度
+//dvol:体積(質量を仮想質量からρ_0*Vで定義)
+//ddens:現在の密度
+//dfix:dfix:固定点(毛髪の開始点)を示す配列(1なら固定点,0ならそれ以外)
+//n:粒子数
 __global__
 void CxFrictionAllParticlesConstraint(float* dpos, float* dcurpos, float* drestdens, float* dvol, float* ddens, int* dfix, int n) {
     // グリッド,ブロック内のスレッド位置を粒子インデックスとする
@@ -2666,6 +2795,7 @@ void CxFrictionAllParticlesConstraint(float* dpos, float* dcurpos, float* drestd
                             float3 v_ij = v_i - v_j;
 
                             r_ij = normalize(r_ij);
+
                             //衝突法線に対して垂直な成分を求める
                             float3 delxn = v_ij - r_ij * dot(v_ij, r_ij);//delta x_⊥=v_ij-x_||
 
@@ -2697,7 +2827,6 @@ void CxFrictionAllParticlesConstraint(float* dpos, float* dcurpos, float* drestd
     dpos[DIM * sid + 1] += x_fric.y;
     dpos[DIM * sid + 2] += x_fric.z;
 }
-
 
 //新たに2頂点から間のエッジの姿勢を求める
 //dpos:位置

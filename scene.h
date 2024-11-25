@@ -142,6 +142,9 @@ public:
 	
 	//髪型のobjファイルを読み込む
 	static bool readObjFile(const char* filename, vector<glm::vec3>& PosArray, vector<glm::ivec2>& IndexArray, vector<int>& FixArray);
+	//髪型用のobjファイルに書き換え
+	static bool MakeHairObjFile(const char* In_filename,const char* Out_filename);
+
 	static void initElasticFromObj(vector<glm::vec3>PosArray, vector<glm::ivec2>IndexArray, vector<int>FixArray, float ks, float kbt,float mass,int& num_elastic,int &all_particles);
 
 	static void drawHairObject(unsigned int vbo, int n, unsigned int color_vbo,unsigned int normal_vbo, float* data, int offset, double pscale, double prad, double czf = 1000, double czb = -1000);

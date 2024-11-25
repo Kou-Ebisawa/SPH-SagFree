@@ -36,6 +36,8 @@
 #include <time.h>
 #include <cmath>
 
+//髪型アセットの作成
+#include "rx_obj.h"
 
 //-----------------------------------------------------------------------------
 // 定数・変数
@@ -461,15 +463,10 @@ void ScenePBD::ImGui(GLFWwindow* window)
 	if (ImGui::Button("MoreRod(Not SagFree)")) { initMoreRod(false); }
 
 	//風を設定
-	if (ImGui::Button("AddWind")) { ChangeWindPower(make_float3(10.f, 0.f, 0.0f)); }
+	if (ImGui::Button("AddWind")) { ChangeWindPower(make_float3(30.f, 0.f, 0.0f)); }
 	//風を止める
 	if (ImGui::Button("QuitWind")) { ChangeWindPower(make_float3(0.f, 0.f, 0.0f)); }
 
-	//ImGui::Checkbox("use edges inside", &(m_elasticbody->m_bUseInEdge));//元の設定 複数の弾性体の扱いが面倒なのでコメントアウト
-	//ImGui::Separator();
-	//ImGui::InputInt("iterations", &(m_elasticbody->m_iNmax), 1, 20);
-	//ImGui::InputFloat("stiffness", &(m_elasticbody->m_fK), 0.01f, 1.0f, "%.2f");
-	//ImGui::InputFloat("wind", &(m_elasticbody->m_fWind), 0.01f, 0.5f, "%.2f");
 	ImGui::Separator();
 	if (ImGui::Button("quit")) { glfwSetWindowShouldClose(window, GLFW_FALSE); }
 
@@ -597,6 +594,44 @@ bool ScenePBD::readObjFile(const char* filename,vector<glm::vec3> &PosArray,vect
 	}
 }
 
+//髪型用にObjファイルを編集
+bool ScenePBD::MakeHairObjFile(const char* In_filename,const char* Out_filename) {
+	//file open
+	ifstream f_in(In_filename);
+	ofstream f_out(Out_filename);
+	if (!f_in) {
+		cout << "Error! cannot open file \"" << In_filename << "\"" << endl;
+		f_in.close();
+		return false;
+	}
+
+	if (!f_out) {
+		cout << "Error! cannot open file \"" << Out_filename << "\"" << endl;
+		f_out.close();
+		return false;
+	}
+
+	int id_e = 0;
+	glm::ivec2 prev_index(0);
+
+	while (!f_in.eof()) {
+		char buf[64];
+		f_in.getline(buf, 64);
+
+		if (buf[0] == 'l') {
+			glm::ivec2 index;
+			sscanf_s(buf, "l %d %d", &index.x, &index.y);
+
+			//連続したインデックスでないなら毛髪として表現不能
+			if (index.y-index.x!=1) {
+				continue;
+			}
+		}
+
+		f_out << buf << endl;
+	}
+}
+
 //SPHの初期化
 void ScenePBD::initSPH(int max_particles,int num_elastic,float mass, bool use_bp)
 {
@@ -638,7 +673,6 @@ void ScenePBD::initSPH(int max_particles,int num_elastic,float mass, bool use_bp
 	else {
 		g_sim->m_use_bparticles = false;
 	}
-	//calSurfaceMesh();
 }
 
 //海老沢追加
@@ -913,11 +947,44 @@ void ScenePBD::initMoreRod(bool sag_free_flag) {
 	//弾性体の初期化
 	//initElasticbodies(num_elasticbodies, num_particles, ks, kbt, ON_SPHERE);//ON_SPHEREで球上に配置
 
+	//髪型用にObjファイルを書き換え
+	//髪型アセットの作成----------------------------------------------------------------------------------------------------------------------------
+	//Objファイルの読み込み
+	// 
+	// 
+	rxOBJ obj;
+	vector <glm::vec3> vrts,vnms;//頂点情報,法線情報
+	vector <rxFace> plys;//面情報
+	rxMTL mats;//材質情報
+	obj.Read("AssetsNotUsed/Rotated_wisps.obj", vrts, vnms, plys, mats);
+
+	//ポリゴンへの設定
+	rxPolygonsE poly;
+	poly.vertices = vrts;
+	poly.faces = plys;
+	//エッジの探索
+	int edge_count=SearchEdge(poly);
+	cout << "edge_count" << edge_count << endl;
+	
+	SearchBoundaryEdge(poly);
+
+
+	//-----------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
 	//objファイルから弾性体の生成
 	vector<glm::vec3> PosArray;
 	vector<glm::ivec2> IndexArray;
 	vector<int> FixArray;
 	char* filename = "Assets/test.obj";
+	
+	//一時的に変更
+	//char* filename = "AssetsNotUsed/Inter_Test.obj";
+
+	//HairObjを作る
+	//MakeHairObjFile("Assets/Meta_human.obj", "Assets/Meta_human_Hair.obj");
+
 	readObjFile(filename, PosArray, IndexArray, FixArray);
 	//test.objの場合、回転をさせる
 	if (strcmp(filename, "Assets/3000.obj")) {
@@ -927,6 +994,7 @@ void ScenePBD::initMoreRod(bool sag_free_flag) {
 			PosArray[i].z = -tmp;
 		}
 	}
+
 	float mass = 1.0e-1;//5.0e-3
 	initElasticFromObj(PosArray, IndexArray, FixArray, ks, kbt,mass,num_elasticbodies,all_particles);
 	

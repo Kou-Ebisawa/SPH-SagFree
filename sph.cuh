@@ -29,7 +29,7 @@ void CuSphDensity(float* drestdens,float* ddens, float* dvol, int n);
 void CuSphPressure(float* drestdens,float* dpres, float* ddens, int n);
 
 void CuSphVorticity(float* dvort, float* dvel, float* ddens, float* dvol, int* datt, int n);
-void CuSphForces(float* drestdens,float* dacc, float* dvel, float* ddens, float* dpres, float* dvort, float* dvol, int* datt,float3 power, int n);
+void CuSphForces(float* drestdens,float* dacc, float* dvel, float* ddens, float* dpres, float* dvort, float* dvol, int* datt,float3 power,float* dfss, int n);
 void CuSphViscosityForces(float* drestdens,float* dacc, float* dvel, float* ddens, float* dvol, int* datt, int n);
 void CuSphXSPHViscosity(float* dvel, float* ddens, float* dvol, int* datt, int n);
 void CuSphIntegrate(float* dpos, float* dvel, float* dacc, int* datt, int* fix,int n);//ŠC˜V‘ò•ÏX fix‚ğ’Ç‰Á
@@ -58,7 +58,7 @@ void CuAngVelUpdate(float* dangvel, float* dquat,int* dfix,float dt, int n);
 //Še‰Á‘¬“x‚ÌŠÔÏ•ª
 void CuAngVelIntegrate(float* dangvel, float* dcurquat, float* dquat, int* dfix, float dt, int n, bool vel_control);
 //Šî€‚Æ‚È‚ép¨‚Ì•ÏX
-void CuRestDensSet(float* dpos, float* dRestDens, float* dvol, int n);
+void CuRestDensSet(float* dpos, float* dRestDens, float* dvol, float* dmas, int n);
 //ˆê—¥‚ÌŠî€–§“x‚Ìİ’è
 void CuRestTotalDens(float* drestdens,float dens, int n);
 

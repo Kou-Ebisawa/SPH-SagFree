@@ -137,6 +137,12 @@
     <ClInclude Include="inc\rx_shaders.h">
       <Filter>rx%28inc%29</Filter>
     </ClInclude>
+    <ClInclude Include="inc\rx_mesh.h">
+      <Filter>rx%28inc%29</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\rx_obj.h">
+      <Filter>rx%28inc%29</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="bin\sph_scene_1.cfg">

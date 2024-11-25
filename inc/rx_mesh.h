@@ -184,6 +184,44 @@ public:
 };
 
 
+
+//海老沢追加
+//境界の頂点とエッジの情報のみを持ったポリゴンを複数扱う
+class Edge_Vert {
+public:
+	vector<glm::vec3> vertices;//頂点座標
+	vector<rxEdge> edges;//エッジの情報
+
+	void Edge_Vert::vertAdd(glm::vec3 vert) {
+		//エッジが存在しない場合
+		if (edges.size() == 0) {
+			vertices.push_back(vert);
+		}
+		else {
+			vertices.push_back(vert);
+			//エッジの連結を変える
+			edges[edges.size() - 1].v[1] = vertices.size() - 1;
+		}
+	}
+
+	//頂点が既に一つ以上追加されていることを前提とする
+	void Edge_Vert::edgeAdd(rxEdge edge) {
+		//エッジのインデックスを書き換える
+		edge.v[0] = vertices.size() - 1;
+		//追加されなかった場合のために，最初のインデックスをさしておく
+		edge.v[1] = 0;
+
+		edges.push_back(edge);
+	}
+
+	//配列をクリア
+	void Edge_Vert::Clear() {
+		vertices.clear();
+		edges.clear();
+	}
+};
+
+
 //-----------------------------------------------------------------------------
 // MARK:ポリゴンの描画
 //-----------------------------------------------------------------------------
@@ -1918,6 +1956,462 @@ static inline int DebugWeights(const rxPolygonsE &obj, string filename)
 
 	return 1;
 }
+
+
+
+
+
+
+//海老沢追加
+//ソートに用いる
+inline bool edge_idx_compare(glm::ivec2 e1, glm::ivec2  e2) { return e1.x < e2.x; }
+
+//エッジと頂点座標のみを出力
+static inline bool SaveInterObj(string file_name,vector<Edge_Vert> inter_objs) {
+	vector<glm::vec3> vertices;
+	vector<rxEdge> edges;
+	for (int i = 0; i < inter_objs.size(); i++) {
+		Edge_Vert inter_obj = inter_objs[i];
+		int prev_vert_size = vertices.size();
+
+		for (int j = 0; j < inter_obj.vertices.size(); j++) {
+			vertices.push_back(inter_obj.vertices[j]);
+		}
+		for (int j = 0; j < inter_obj.edges.size(); j++) {
+			rxEdge edge = inter_obj.edges[j];
+			edge.v[0] += prev_vert_size;
+			edge.v[1] += prev_vert_size;
+			edges.push_back(edge);
+		}
+	}
+
+	ofstream file;
+
+	file.open(file_name.c_str());
+	if (!file || !file.is_open() || file.bad() || file.fail()) {
+		cout << "rxOBJ::Save : Invalid file specified" << endl;
+		return false;
+	}
+
+	// 頂点(v)
+	int nv = (int)vertices.size();
+	for (int i = 0; i < nv; ++i) {
+		file << "v " << Vec3ToString(glm::vec3(vertices[i])) << endl;
+	}
+
+	//エッジ
+	vector<glm::ivec2> edge_idx;//エッジを構成する二つのエッジを保持
+	//エッジを構成する粒子のインデックスをivec(small,large)の形で保持
+	int ne = (int)edges.size();
+	for (int i = 0; i < ne; i++) {
+		//元の値がインデックスなので+1しておく
+		int v1 = edges[i].v[0] + 1;
+		int v2 = edges[i].v[1] + 1;
+		if (v1 < v2) {
+			edge_idx.push_back(glm::ivec2(v1, v2));
+		}
+		else {
+			edge_idx.push_back(glm::ivec2(v2, v1));
+		}
+	}
+
+	//ソート処理が必要
+	std::sort(edge_idx.begin(), edge_idx.end(), edge_idx_compare);
+
+	//ファイルへの書き出し
+	for (int i = 0; i < edge_idx.size(); i++) {
+		file << "l " << edge_idx[i].x << " " << edge_idx[i].y << endl;
+	}
+}
+
+//一つのメッシュのみをobjファイルに出力
+static inline bool SaveOneMesh(string file_name, Edge_Vert Mesh) {
+	ofstream file;
+
+	file.open(file_name.c_str());
+	if (!file || !file.is_open() || file.bad() || file.fail()) {
+		cout << "rxOBJ::Save : Invalid file specified" << endl;
+		return false;
+	}
+
+	// 頂点(v)
+	int nv = (int)Mesh.vertices.size();
+	for (int i = 0; i < nv; ++i) {
+		file << "v " << Vec3ToString(glm::vec3(Mesh.vertices[i])) << endl;
+	}
+
+	//エッジ
+	vector<glm::ivec2> edge_idx;//エッジを構成する二つのエッジを保持
+	//エッジを構成する粒子のインデックスをivec(small,large)の形で保持
+	int ne = (int)Mesh.edges.size();
+	for (int i = 0; i < ne; i++) {
+		//元の値がインデックスなので+1しておく
+		int v1 = Mesh.edges[i].v[0] + 1;
+		int v2 = Mesh.edges[i].v[1] + 1;
+		if (v1 < v2) {
+			edge_idx.push_back(glm::ivec2(v1, v2));
+		}
+		else {
+			edge_idx.push_back(glm::ivec2(v2, v1));
+		}
+	}
+
+	//ソート処理が必要
+	std::sort(edge_idx.begin(), edge_idx.end(), edge_idx_compare);
+
+	//ファイルへの書き出し
+	for (int i = 0; i < edge_idx.size(); i++) {
+		file << "l " << edge_idx[i].x << " " << edge_idx[i].y << endl;
+	}
+}
+
+
+
+
+
+//内積配列のソートに用いる
+inline bool dot_compare(std::pair<float,int> e1,std::pair<float,int> e2) { return e1.first < e2.first; }
+
+//境界エッジの出力
+static inline int SearchBoundaryEdge(rxPolygonsE& obj) {
+	int num_e = (int)obj.edges.size();
+	vector<int> boundary_edges;//境界エッジのインデックスを1次元配列で管理
+	for (int i = 0; i < num_e; i++) {
+		rxEdge edge = obj.edges[i];
+		if (edge.f.size() == 1) {//エッジに含まれるポリゴンが一つだけなら，このエッジを追加
+			/*for (auto j = edge.f.begin(); j != edge.f.end(); j++) {
+				cout << "idx " << i << " f" << *j << endl;
+			}*/
+			boundary_edges.push_back(i);
+		}
+	}
+	cout << "boundary edge count" << boundary_edges.size() << endl;
+
+	int num_v = (int)obj.vertices.size();
+	//境界エッジのみを含んだ，各頂点が持つエッジのインデックス(境界エッジを持たない頂点ではnullを持つ)
+	vector<set<int>> new_vedges(num_v);
+
+	//頂点から境界エッジに含まれるエッジのインデックスを追加
+	for (int i = 0; i < num_v; i++) {
+		set<int> edge_idxs= obj.vedges[i];
+		//*itrがエッジのインデックス
+		for (set<int>::iterator itr = edge_idxs.begin(); itr!=edge_idxs.end(); itr++) {
+			//現在の粒子が持つエッジのインデックスが境界粒子の配列に含まれている場合
+			if (find(boundary_edges.begin(), boundary_edges.end(), *itr) != boundary_edges.end()) {
+				//cout << "add new vedges " << *itr << endl;
+				new_vedges[i].insert(*itr);
+			}
+		}
+	}
+	cout << "edge_idx restored" << endl;
+
+	vector<Edge_Vert> Meshes;
+	int  x= 0;
+
+	//上記でインデックスは取り出したが，実体はobjから取り出す
+	while (!boundary_edges.empty()) {
+		//ここにデータを記憶(一つの閉形式になるはず)
+		Edge_Vert Mesh;
+
+		int edge_idx = boundary_edges[0];
+		//v_initを始点とする
+		int v_init = obj.edges[edge_idx].v[0];
+
+		//頂点を追加
+		Mesh.vertAdd(obj.vertices[v_init]);
+		//cout << "vert_id " << v_init << " add to Mesh" << endl;
+
+		int v1, v2;
+		//常にv2が次の頂点になるようにする
+		v2 = obj.edges[edge_idx].v[1];
+		//始点と一致するものが見つかるまでループする
+		while (v_init != v2) {
+			//-------------------------------------
+			//edgeを記憶(実態はobj.edgesからとるが，v[0],v[1]のインデックスは変更される
+			Mesh.edgeAdd(obj.edges[edge_idx]);
+			//cout << "edge_id " << edge_idx << " add to Mesh" << endl;
+
+			//edge_idxに一致する境界配列は削除する
+			for (int i = 0; i < boundary_edges.size(); i++) {
+				if (boundary_edges[i] == edge_idx) {
+					boundary_edges.erase(boundary_edges.begin() + i);
+					//cout << *(boundary_edges.begin() + i) << " erased!!" << endl;
+					break;
+				}
+			}
+
+			//次の頂点を記憶
+			Mesh.vertAdd(obj.vertices[v2]);
+			//cout << "vert_id " << v2 << " add to Mesh" << endl;
+			//------------------------------------
+
+			//頂点ごとに2組の境界エッジを持つことを前提としている
+			set<int> edges = new_vedges[v2];
+			auto itr = edges.begin();
+			int first = *itr;
+			itr++;
+			int second = *itr;
+			//cout << "first: " << first << " second: " << second << endl;
+			//2組のうち，現在と異なるエッジ番号を選択する
+			if (edge_idx == first) edge_idx = second;
+			else edge_idx = first;
+
+			//現在のv2と一致しない方を方を次のv2とする
+			if (v2 == obj.edges[edge_idx].v[0]) {
+				v1 = obj.edges[edge_idx].v[0];
+				v2 = obj.edges[edge_idx].v[1];
+			}
+			else if(v2==obj.edges[edge_idx].v[1]) {
+				v1 = obj.edges[edge_idx].v[1];
+				v2 = obj.edges[edge_idx].v[0];
+			}
+			else {
+				std::cerr << "Edge_Vert Error!! No Vertices can Add! Vertices are not included now Edge!!------------------------------------------------------------" << endl;
+			}
+		}
+		rxEdge e;
+		//最後のエッジを追加
+		Mesh.edgeAdd(e);
+		Mesh.vertAdd(obj.vertices[v2]);
+		//最後のエッジを削除
+		for (int i = 0; i < boundary_edges.size(); i++) {
+			if (boundary_edges[i] == edge_idx) {
+				boundary_edges.erase(boundary_edges.begin() + i);
+				//cout << *(boundary_edges.begin() + i) << " erased!!" << endl;
+				break;
+			}
+			cout << "Not Erased" << endl;
+		}
+
+		//メッシュを保存
+		x++;
+		Meshes.push_back(Mesh);
+		cout << "Mesh Added! vertices size " << Mesh.vertices.size() << " edge size" << Mesh.edges.size() << " id: " << x << endl;
+	}
+	//edge_idxに一致する境界配列は削除する
+	cout << "Mesh Add Finished!!" << endl;
+	//メモリの開放
+	boundary_edges.clear();
+	new_vedges.clear();
+	obj.Clear();
+
+	//閉形式のメッシュを出力---------------------------------------------------------------
+	for (int j = 0; j < Meshes.size(); j++) {
+		string filename = "AssetsNotUsed/DebugMeshes/Mesh" + to_string(j) + ".obj";
+		SaveOneMesh(filename, Meshes[j]);
+	}
+	//--------------------------------------------------------------------------------------
+
+
+	//最終的な髪の毛の集合
+	vector<Edge_Vert> Strands;
+
+	//境界のみを持った閉形式のエッジと頂点の集合から縦方向のみのエッジを抽出
+	for (int i = 0; i < Meshes.size(); i++) {
+		vector<rxEdge> edges = Meshes[i].edges;
+		vector<glm::vec3> vertices = Meshes[i].vertices;
+		if (edges.empty() || vertices.empty()) {
+			std::cerr << "Error:vertices or edges are empty!!------------------------------------------------------------------------------------------" << endl;
+		}
+		cout << "id " << i << "start" << endl;
+		//内積の配列を作る(2つ目の要素にはインデックスを格納)
+		vector<std::pair <float, int>> dot_array;
+
+		for (int j = 0; j < vertices.size(); j++) {
+			//一つ前の頂点との方向ベクトルだが，エッジは繰り返すので，最初と最後はオーバーフローをしないように
+			glm::vec3 prev_dir, next_dir;
+			//前の頂点との方向ベクトル
+			if (j == 0) prev_dir = glm::normalize(vertices[vertices.size()-1] - vertices[0]);//最後のインデックスと最初のインデックス
+			else prev_dir = glm::normalize(vertices[j - 1] - vertices[j]);
+
+			//次の頂点との方向ベクトル
+			if (j == vertices.size() - 1) next_dir = (vertices[0] - vertices[vertices.size() - 1]);
+			else next_dir = glm::normalize(vertices[j + 1] - vertices[j]);
+			//絶対値のみを比較したい
+			dot_array.push_back(make_pair(abs(glm::dot(prev_dir, next_dir)), j));
+		}
+		cout << "get dot! id " << i << endl;
+
+		//ソートして，最小から4つのインデックスを取る
+		sort(dot_array.begin(), dot_array.end(), dot_compare);
+
+
+
+		//距離が短いエッジを消す場合--------------------------------------------------------------------------------------------------------------
+		//vector<int> min_idx;
+		//for (int j = 0; j < 4; j++) {
+		//	//最小の値を持つ4つのインデックス
+		//	min_idx.push_back(dot_array[j].second);
+		//	if (dot_array[j].first > 0.1) cout << "dot too high! id " << i << " value " << dot_array[j].first << endl;
+		//}
+
+		////切り捨てるエッジの条件を非常に簡略化し，インデックス間の数が少ない部分を切り捨てる
+		////インデックスを小さい順に並べ替える(インデックスであり，値の大小は並び順)
+		//sort(min_idx.begin(), min_idx.end());
+
+		//int size = vertices.size();
+		////インデックス間の距離(4つのインデックスの間にあるインデックスの数の差)
+		//vector<int> dist{ min_idx[1] - min_idx[0], min_idx[2] - min_idx[1], min_idx[3] - min_idx[2], size + min_idx[0] - min_idx[3] };
+
+		////最小距離とその対角にあるインデックス間のエッジを消す
+		//auto iterator = std::min_element(dist.begin(), dist.end());
+		//int id = std::distance(dist.begin(), iterator);
+
+		////エッジを消す(11-12,21-22間のエッジを残す)
+		//int min_idx11, min_idx12, min_idx21, min_idx22;
+		//if (id == 0 || id == 2) {
+		//	//1-2,3-0のエッジを残す
+		//	min_idx11 = min_idx[1];
+		//	min_idx12 = min_idx[2];
+
+		//	min_idx21 = min_idx[3];
+		//	min_idx22 = min_idx[0] + vertices.size();
+		//}
+		//else {
+		//	//0-1,2-3のエッジを残す
+		//	min_idx11 = min_idx[0];
+		//	min_idx12 = min_idx[1];
+
+		//	min_idx21 = min_idx[2];
+		//	min_idx22 = min_idx[3];
+		//}
+
+		//Edge_Vert Strand1;
+		//for (int k = min_idx11; k < min_idx12; k++) {
+		//	Strand1.vertAdd(vertices[k]);
+		//	Strand1.edgeAdd(edges[k]);
+		//}
+		//Strand1.vertAdd(vertices[min_idx12]);
+
+		//Edge_Vert Strand2;
+		//for (int k = min_idx21; k < min_idx22; k++) {
+		//	int tmp = k;
+		//	if (tmp > vertices.size()-1) tmp -= vertices.size();
+		//	Strand2.vertAdd(vertices[tmp]);
+		//	//cout << "did" << endl;
+		//	//頂点の配列の最大値を超える場合，エッジの配列からオーバーフローする可能性がある．
+		//	if (tmp > edges.size()-1) {
+		//		//この場合，適当なエッジを追加しておく
+		//		rxEdge e;
+		//		Strand2.edgeAdd(e);
+		//	}
+		//	else {
+		//		Strand2.edgeAdd(edges[tmp]);
+		//	}
+		//}
+		////配列からオーバーフローしないようにする．
+		//if (min_idx22 > vertices.size() - 1) min_idx22 -= vertices.size();
+		//Strand2.vertAdd(vertices[min_idx22]);
+
+		//Strands.push_back(Strand1);
+		//Strands.push_back(Strand2);
+		//cout << "finish id " << i << endl;
+		//------------------------------------------------------------------------------------------------------------------------------------------------
+
+		
+
+		//y座標で判定
+		//4つの頂点のそれぞれのy座標とインデックスを保持しておく-------------------------------------------------------------------------------------------
+		vector<std::pair<float, int>> y_coord;
+		for (int j = 0; j < 4; j++) {
+			y_coord.push_back(make_pair(vertices[dot_array[j].second].y, dot_array[j].second));
+		}
+		//小さい順に並び変える
+		sort(y_coord.begin(), y_coord.end(), dot_compare);
+
+		//最大の2つが固定点となる始点として，それぞれのインデックスを保持
+		int start1_ind = y_coord[2].second;
+		int start2_ind = y_coord[3].second;
+
+		//その他の二つを終点として，それぞれのインデックスを保持
+		int last1_ind = y_coord[0].second;
+		int last2_ind = y_coord[1].second;
+
+		Edge_Vert Strand1;
+		Strand1.vertAdd(vertices[start1_ind]);
+		while (start1_ind != last1_ind && start1_ind != last2_ind) {
+			//cout << "Strand1 start ind" << start1_ind << endl;
+
+			//+方向に進んだ場合
+			if (start1_ind == vertices.size() - 1) start1_ind = 0;
+			else start1_ind++;
+
+			if (start1_ind == start2_ind) {
+				//もう一つのy最大についた場合には，初期化して-方向に進む
+				start1_ind = y_coord[2].second;
+				Strand1.Clear();
+				break;
+			}
+
+			rxEdge e;
+			Strand1.edgeAdd(e);
+			Strand1.vertAdd(vertices[start1_ind]);
+		}
+		//breakし，Strand1が初期化された場合，-方向に進む
+		if (Strand1.vertices.empty()) {
+			//改めて初期点を追加
+			Strand1.vertAdd(vertices[start1_ind]);
+			while (start1_ind != last1_ind && start1_ind != last2_ind) {
+				//-方向に進んだ場合
+				if (start1_ind == 0) start1_ind = vertices.size() - 1;
+				else start1_ind--;
+
+				rxEdge e;
+				Strand1.edgeAdd(e);
+				Strand1.vertAdd(vertices[start1_ind]);
+			}
+		}
+		
+		cout << "finish Strand1 id " << i << endl;
+
+		Edge_Vert Strand2;
+		Strand2.vertAdd(vertices[start2_ind]);
+		while (start2_ind != last1_ind && start2_ind != last2_ind) {
+			//+方向に進んだ場合
+			if (start2_ind == vertices.size() - 1) start2_ind = 0;
+			else start2_ind++;
+
+			if (start2_ind == start1_ind) {
+				//もう一つのy最大についた場合には，初期化して-方向に進む
+				start2_ind = y_coord[3].second;
+				Strand2.Clear();
+				break;
+			}
+
+			rxEdge e;
+			Strand2.edgeAdd(e);
+			Strand2.vertAdd(vertices[start2_ind]);
+		}
+		//breakし，Strand2が初期化された場合，-方向に進む
+		if (Strand2.vertices.empty()) {
+			//改めて初期点を追加
+			Strand2.vertAdd(vertices[start2_ind]);
+			while (start2_ind != last1_ind && start2_ind != last2_ind) {
+				//-方向に進んだ場合
+				if (start2_ind == 0) start2_ind = vertices.size() - 1;
+				else start2_ind--;
+
+				rxEdge e;
+				Strand2.edgeAdd(e);
+				Strand2.vertAdd(vertices[start2_ind]);
+			}
+		}
+		cout << "finish Strand2 id " << i << endl;
+
+		Strands.push_back(Strand1);
+		Strands.push_back(Strand2);
+	}
+
+	cout << "start Save" << endl;
+	//出力
+	SaveInterObj("AssetsNotUsed/Inter_Test.obj", Strands);
+
+	for (int j = 0; j < Strands.size(); j++) {
+		string filename = "AssetsNotUsed/AllStrands/Strand" + to_string(j) + ".obj";
+		SaveOneMesh(filename, Strands[j]);
+	}
+}
+
 
 
 #endif // #ifndef _RX_MESH_H_

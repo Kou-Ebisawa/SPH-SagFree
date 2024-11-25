@@ -113,11 +113,11 @@ void CuSphVorticity(float* dvort, float* dvel, float* ddens, float* dvol, int* d
  * @param[in] datt 粒子属性(0で流体,1で境界)(デバイスメモリ)
  * @param[in] n 粒子数
  */
-void CuSphForces(float* drestdens,float* dacc, float* dvel, float* ddens, float* dpres, float* dvort, float* dvol, int* datt,float3 power, int n)
+void CuSphForces(float* drestdens,float* dacc, float* dvel, float* ddens, float* dpres, float* dvort, float* dvol, int* datt,float3 power,float* dfss, int n)
 {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);	// 粒子数=スレッド数としてブロック/グリッドサイズを計算
-	CxSphForces<<<grid, block>>>(drestdens,dacc, dvel, ddens, dpres, dvort, dvol, datt,power, n);	// カーネル実行
+	CxSphForces<<<grid, block>>>(drestdens,dacc, dvel, ddens, dpres, dvort, dvol, datt,power,dfss, n);	// カーネル実行
 	cudaThreadSynchronize();
 }
 /*!
@@ -494,10 +494,10 @@ void CuAngVelIntegrate(float* dangvel,float* dcurquat, float* dquat,int* dfix,fl
 //dRestDens:粒子ごとに設定する基準密度
 //dvol:体積
 //n:粒子数
-void CuRestDensSet(float* dpos,float* dRestDens, float* dvol, int n) {
+void CuRestDensSet(float* dpos,float* dRestDens, float* dvol,float* dmas, int n) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
-	CxRestDensSet << <grid, block >> > (dpos, dRestDens, dvol, n);
+	CxRestDensSet << <grid, block >> > (dpos, dRestDens, dvol, dmas, n);
 	cudaThreadSynchronize();
 }
 
@@ -554,7 +554,10 @@ void CuLocalForceStep(float* dpos, float* dlen, float* dquat,float* dcurquat, fl
 void CuGlobalTorqueStep(float* dpos, float* dquat, float* domega, float* dlen, float* dkss, float* dkbt, int* dfix, int* dlast_index, int num_elastic) {
 	dim3 block, grid;
 	CuCalGridN(num_elastic, block, grid);
+	//下から求める
 	CxGlobalTorqueStep << <grid, block >> > (dpos, dquat, domega, dlen, dkss, dkbt, dfix, dlast_index, num_elastic);
+	//上から求める
+	//CxGlobalTorqueStep_Upstair << <grid, block >> > (dpos, dquat, domega, dlen, dkss, dkbt, dfix, dlast_index, num_elastic);
 	cudaThreadSynchronize();
 }
 

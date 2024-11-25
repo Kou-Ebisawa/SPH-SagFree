@@ -122,17 +122,6 @@ void SPH::Initialize(const SceneParameter &env,int num_elastic)
 	m_params.mass = 0.01;
 	cout << "max particles " << m_params.max_particles << endl;
 
-	//float n = 50.0f;
-	//float d = 1.293f;
-	//float r = 2.0e-3f; // 3.0 or 2.0
-	//float v = 4.0f / 3.0f * PI_F * r * r * r;
-	//float m = v * d;
-	//float h = powf(n * v / (4.0f / 3.0f * PI_F), 1.0f / 3.0f);
-	//m_params.effective_radius = h;      // influence radius [m]
-	//m_params.dens = d;  // rest density [kg/m3]
-	//m_params.particle_radius = r; // particle radius [m]
-	//m_params.mass = m;   // particle mass [kg]
-
 	//風の設定(GUIで一つの値を適用したり、解除したりできる)
 	m_wind_power = make_float3(0.f, 0.f, 0.f);
 	//衝突をする球との判定
@@ -185,11 +174,7 @@ void SPH::Initialize(const SceneParameter &env,int num_elastic)
 	glm::vec3 bext = glm::vec3(env.boundary_ext.x, env.boundary_ext.y, env.boundary_ext.z);
 	m_envmin = bcen-bext;
 	m_envmax = bcen+bext;
-	//海老沢変更---------------------------------------------
-	//m_envmin = glm::vec3(-10.0f);
-	//m_envmax = glm::vec3(10.0f);
-	
-	//-------------------------------------------------------
+
 	cout << "simlation range : " << glm::to_string(m_envmin) << " - " << glm::to_string(m_envmax) << endl;
 
 	// 粒子の衝突判定に用いる境界の大きさ．描画のために半径分小さくしておく
@@ -287,7 +272,7 @@ void SPH::Allocate(int max_particles)
 	//個々に初期の密度を設定
 	SetParticlesToCell(pos, m_d_vel, m_num_particles, h);
 	CuSphCalVolume(m_d_vol, m_d_attr, m_num_particles, m_params.mass / m_params.rest_dens);
-	CuRestDensSet(pos, m_d_rest_density, m_d_vol, m_num_particles);
+	CuRestDensSet(pos, m_d_rest_density, m_d_vol, m_d_mass, m_num_particles);
 	CuUnmapGLBufferObject(m_cgr_pos);
 
 	//一律の初期密度
@@ -306,10 +291,6 @@ void SPH::SagFree(void) {
 	//CuCalcTorque(pos, m_d_mass, m_d_quat, m_d_fss, m_d_rest_length, m_d_kss, m_d_fix, make_float3(0, -9.81, 0), m_num_particles);
 
 	CuGlobalTorqueStep(pos, m_d_quat, m_d_rest_darboux, m_d_rest_length, m_d_kss, m_d_kbt, m_d_fix, m_d_last_index, m_numElastic);
-
-	//トルクの計算
-	//cout << "before Global Torque Step------------------------------------------------------" << endl;
-	//CuCalcTorque(pos, m_d_mass, m_d_quat, m_d_fss, m_d_rest_length, m_d_kss, m_d_fix, make_float3(0, -9.81, 0), m_num_particles);
 
 	CuLocalTorqueStep(m_d_quat, m_d_rest_darboux, m_d_rest_length, m_d_kbt, m_d_fix, m_num_particles);
 
@@ -461,19 +442,19 @@ bool SPH::Update(float dt, int step)
 	
 	//海老沢追加
 	//シンプルなsphかpbfかをここで決める
-	bool sph = true;
-	bool pbf = false;
+	bool sph = false;
+	bool pbf = true;
 
 	//海老沢追加
 	//速度，加速度が一定(VEL_EPSILON,ANGVEL_EPSILON)以下の場合，速度を切り捨てる
-	bool vel_control = true;
+	bool vel_control = false;
 	//-------------------------------------------------------------------------
 	
 	// CUDAカーネルによる粒子処理
 	CuSphDensity(m_d_rest_density,m_d_dens, m_d_vol, m_num_particles);	// 密度計算
 	if (sph) CuSphPressure(m_d_rest_density, m_d_pres, m_d_dens, m_num_particles);	// 圧力計算
 	CuSphVorticity(m_d_vort, m_d_vel, m_d_dens, m_d_vol, m_d_attr, m_num_particles);	// 渦度計算
-	if (sph) CuSphForces(m_d_rest_density, m_d_acc, m_d_vel, m_d_dens, m_d_pres, m_d_vort, m_d_vol, m_d_attr, m_wind_power, m_num_particles);	// 粒子にかかる力(圧力項&外力項)の計算
+	if (sph) CuSphForces(m_d_rest_density, m_d_acc, m_d_vel, m_d_dens, m_d_pres, m_d_vort, m_d_vol, m_d_attr, m_wind_power,m_d_fss, m_num_particles);	// 粒子にかかる力(圧力項&外力項)の計算
 	//海老沢追加
 	if (pbf) CuPbfExternalForces(m_d_acc, m_d_attr, m_wind_power, m_num_particles);
 	m_method_visc = 2;
@@ -503,10 +484,10 @@ bool SPH::Update(float dt, int step)
 
 	//密度制約の利用
 	if (pbf) {
-		for (int i = 0; i < 20; i++) {//反復回数元は2回
+		for (int i = 0; i < 10; i++) {//反復回数元は2回
 			//密度制約のためにソートしなおす
 			SetParticlesToCell(pos, m_d_vel, m_num_particles, h);
-			//密度制約
+			//密度制約(仮想体積とした場合，不安定になる．)
 			CuPbfConstraint(pos, m_d_dens, m_d_rest_density, m_d_pbf_lambda, m_d_vol, m_num_particles);
 		}
 	}
@@ -515,18 +496,12 @@ bool SPH::Update(float dt, int step)
 	//XPBDの制約の処理(伸び・せん断制約，曲げねじれ制約(中で反復)
 	CuXPBDConstraint(pos, m_d_curpos, m_d_mass, m_d_rest_length, m_d_kss, m_d_kbt, m_d_quat, m_d_curquat, m_d_rest_darboux, m_d_lambda_ss, m_d_lambda_bt, m_d_fix, dt, m_num_particles, iter, m_example_flag);
 
-	//PBDの伸びせん断制約(確認用)
-	//CuPBDStretchingConstraint(pos, m_d_mass, m_d_rest_length, m_d_kss, m_d_quat, m_d_fix, m_num_particles, iter);
-
 	//摩擦制約の実装--------------------------------------
 	SetParticlesToCell(pos, m_d_vel, m_num_particles, h);
 
 	CuFrictionConstraint(pos, m_d_curpos, m_d_rest_density, m_d_vol, m_d_dens, m_d_fix, m_num_particles);
 	//摩擦制約の後，姿勢を修正する
 	//CuFrictionConstraint_withQuat(pos, m_d_curpos, m_d_rest_density, m_d_vol, m_d_dens, m_d_quat, m_d_rest_length, m_d_fix, m_num_particles);
-
-	//摩擦によって動いた分，元の位置に姿勢を戻す(2頂点の位置に直接戻すだけではダメ)
-	//CuQuatSet(pos, m_d_quat, m_d_fix, m_num_particles);
 	//----------------------------------------------------
 
 	//時間積分---------------------------------------------------
