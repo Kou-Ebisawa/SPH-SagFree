@@ -25,13 +25,13 @@ extern "C"
 
 //-----------------------------------------------------------------------------
 // —±qˆ—
-void CuSphDensity(float* drestdens,float* ddens, float* dvol, int n);
+void CuSphDensity(float* drestdens,float* ddens, float* dvol,float* dmas, int n);
 void CuSphPressure(float* drestdens,float* dpres, float* ddens, int n);
 
 void CuSphVorticity(float* dvort, float* dvel, float* ddens, float* dvol, int* datt, int n);
-void CuSphForces(float* drestdens,float* dacc, float* dvel, float* ddens, float* dpres, float* dvort, float* dvol, int* datt,float3 power,float* dfss, int n);
-void CuSphViscosityForces(float* drestdens,float* dacc, float* dvel, float* ddens, float* dvol, int* datt, int n);
-void CuSphXSPHViscosity(float* dvel, float* ddens, float* dvol, int* datt, int n);
+void CuSphForces(float* drestdens,float* dacc, float* dvel, float* ddens, float* dpres, float* dvort, float* dvol,float* dmas, int* datt,float3 power,float* dfss, int n);//dmas
+void CuSphViscosityForces(float* drestdens,float* dacc, float* dvel, float* ddens, float* dvol,float* dmas, int* datt, int n);
+void CuSphXSPHViscosity(float* dvel, float* ddens, float* dvol,float*dmas, int* datt, int n);
 void CuSphIntegrate(float* dpos, float* dvel, float* dacc, int* datt, int* fix,int n);//ŠC˜V‘ò•ÏX fix‚ğ’Ç‰Á
 void CuSphIntegrateV(float* dvel, float* dacc, int* datt, int n);
 void CuSphIntegrateP(float* dpos, float* dvel, int* datt, int* dfix, int n);
@@ -74,7 +74,7 @@ void CuLocalTorqueStep(float* dquat, float* domega, float* dlen, float* dkbt, in
 //-----------------
 
 //–§“x§–ñ
-void CuPbfConstraint(float* dpos, float* ddens, float* drestdens, float* dpbf_lambda, float* dvol, int n);
+void CuPbfConstraint(float* dpos, float* ddens, float* drestdens, float* dpbf_lambda, float* dvol,float*dmas, int n);
 //PBF‚Å‰ğ‚­ê‡‚ÌŠO—ÍŒvZ
 void CuPbfExternalForces(float* dacc, int* datt, float3 power, int n);
 //–€C§–ñ

@@ -118,8 +118,8 @@ void SPH::Initialize(const SceneParameter &env,int num_elastic)
 	m_params = env;
 	m_params.rest_dens = env.dens;
 	//海老沢追加--------------------------------------------------------------------------
-	m_params.rest_dens = 8.0e3;//9.8e3,8.0e3
-	m_params.mass = 0.01;
+	m_params.rest_dens = 8.0e4;//9.8e3,8.0e3
+	m_params.mass = 0.1;
 	cout << "max particles " << m_params.max_particles << endl;
 
 	//風の設定(GUIで一つの値を適用したり、解除したりできる)
@@ -262,18 +262,6 @@ void SPH::Allocate(int max_particles)
 	SetColorVBO(SPH::C_CONSTANT);
 
 	m_initialized = true;
-
-	//海老沢追加-------------------------------------------------------------------------
-	//一部パラメータの初期化
-	CuSetParametersZero(m_d_angvel, m_d_fss, m_d_pbf_lambda, m_num_particles);//角速度とエッジにかかる力を0に
-
-	float h = m_params.effective_radius;
-	float* pos = (float*)CuMapGLBufferObject(&m_cgr_pos);
-	//個々に初期の密度を設定
-	SetParticlesToCell(pos, m_d_vel, m_num_particles, h);
-	CuSphCalVolume(m_d_vol, m_d_attr, m_num_particles, m_params.mass / m_params.rest_dens);
-	CuRestDensSet(pos, m_d_rest_density, m_d_vol, m_d_mass, m_num_particles);
-	CuUnmapGLBufferObject(m_cgr_pos);
 
 	//一律の初期密度
 	//CuRestTotalDens(m_d_rest_density,m_params.rest_dens, m_num_particles);
@@ -451,20 +439,20 @@ bool SPH::Update(float dt, int step)
 	//-------------------------------------------------------------------------
 	
 	// CUDAカーネルによる粒子処理
-	CuSphDensity(m_d_rest_density,m_d_dens, m_d_vol, m_num_particles);	// 密度計算
+	CuSphDensity(m_d_rest_density, m_d_dens, m_d_vol, m_d_mass, m_num_particles);	// 密度計算
 	if (sph) CuSphPressure(m_d_rest_density, m_d_pres, m_d_dens, m_num_particles);	// 圧力計算
 	CuSphVorticity(m_d_vort, m_d_vel, m_d_dens, m_d_vol, m_d_attr, m_num_particles);	// 渦度計算
-	if (sph) CuSphForces(m_d_rest_density, m_d_acc, m_d_vel, m_d_dens, m_d_pres, m_d_vort, m_d_vol, m_d_attr, m_wind_power,m_d_fss, m_num_particles);	// 粒子にかかる力(圧力項&外力項)の計算
+	if (sph) CuSphForces(m_d_rest_density, m_d_acc, m_d_vel, m_d_dens, m_d_pres, m_d_vort, m_d_vol, m_d_mass, m_d_attr, m_wind_power, m_d_fss, m_num_particles);	// 粒子にかかる力(圧力項&外力項)の計算
 	//海老沢追加
 	if (pbf) CuPbfExternalForces(m_d_acc, m_d_attr, m_wind_power, m_num_particles);
 	m_method_visc = 2;
 	if(m_method_visc == 1){	// WCSPHの論文での粘性項の計算．粘性項を粒子にかかる力として計算する
-		CuSphViscosityForces(m_d_rest_density,m_d_acc, m_d_vel, m_d_dens, m_d_vol, m_d_attr, m_num_particles);	// 粘性項の計算
+		CuSphViscosityForces(m_d_rest_density, m_d_acc, m_d_vel, m_d_dens, m_d_vol, m_d_mass, m_d_attr, m_num_particles);	// 粘性項の計算
 		CuSphIntegrate(pos, m_d_vel, m_d_acc, m_d_attr, m_d_fix,m_num_particles);	// 速度＆位置の更新(海老沢追加 fix)
 	}
 	else if(m_method_visc == 2){	// XSPH人工粘性の計算．速度に対して粘性を付加するので速度更新>粘性計算>位置更新の順番となる
 		CuSphIntegrateV(m_d_vel, m_d_acc, m_d_attr, m_num_particles);	// 速度のみを更新
-		CuSphXSPHViscosity(m_d_vel, m_d_dens, m_d_vol, m_d_attr, m_num_particles);	// 粘性項の計算(XSPH)
+		CuSphXSPHViscosity(m_d_vel, m_d_dens, m_d_vol, m_d_mass, m_d_attr, m_num_particles);	// 粘性項の計算(XSPH)
 		CuSphIntegrateP(pos, m_d_vel, m_d_attr,m_d_fix, m_num_particles);	// 位置を速度から更新
 	}
 	else{	// 粘性項なし(時間積分のみ)
@@ -488,7 +476,7 @@ bool SPH::Update(float dt, int step)
 			//密度制約のためにソートしなおす
 			SetParticlesToCell(pos, m_d_vel, m_num_particles, h);
 			//密度制約(仮想体積とした場合，不安定になる．)
-			CuPbfConstraint(pos, m_d_dens, m_d_rest_density, m_d_pbf_lambda, m_d_vol, m_num_particles);
+			CuPbfConstraint(pos, m_d_dens, m_d_rest_density, m_d_pbf_lambda, m_d_vol,m_d_mass, m_num_particles);
 		}
 	}
 
@@ -886,7 +874,7 @@ void SPH::Reset(void)
 		CuSphCalVolume(m_d_vol, m_d_attr, m_num_particles, m_params.mass/m_params.rest_dens);
 
 		// 密度計算(描画色決定用)
-		CuSphDensity(m_d_rest_density,m_d_dens, m_d_vol, m_num_particles);
+		CuSphDensity(m_d_rest_density, m_d_dens, m_d_vol, m_d_mass, m_num_particles);
 
 		// チェック用
 		//float avg_val = CuCalAverage(m_d_vol, m_num_particles);
@@ -946,6 +934,22 @@ bool SPH::Set(const vector<glm::vec3>& ppos, const vector<glm::vec3>& pvel,const
 
 	// 粒子描画色設定など
 	Reset();
+
+	//海老沢追加----------------------------------------------------------------------------------------------
+	//一部パラメータの初期化
+	CuSetParametersZero(m_d_angvel, m_d_fss, m_d_pbf_lambda, m_num_particles);//角速度とエッジにかかる力を0に
+
+	float h = m_params.effective_radius;
+	float* pos = (float*)CuMapGLBufferObject(&m_cgr_pos);
+	//個々に初期の密度を設定
+	SetParticlesToCell(pos, m_d_vel, m_num_particles, h);
+	CuSphCalVolume(m_d_vol, m_d_attr, m_num_particles, m_params.mass / m_params.rest_dens);
+	//初期密度の設定
+	CuRestDensSet(pos, m_d_rest_density, m_d_vol, m_d_mass, m_num_particles);
+	//密度計算
+	CuSphDensity(m_d_rest_density, m_d_dens, m_d_vol, m_d_mass, m_num_particles);
+	CuUnmapGLBufferObject(m_cgr_pos);
+	//-------------------------------------------------------------------------------------------------------
 
 	return true;
 }

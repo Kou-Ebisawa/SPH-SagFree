@@ -60,11 +60,11 @@ void CuCalGridN(int n, dim3& block, dim3& grid)
  * @param[in] dvol 粒子体積(デバイスメモリ)
  * @param[in] n 粒子数
  */
-void CuSphDensity(float* drestdens,float* ddens, float* dvol, int n)
+void CuSphDensity(float* drestdens,float* ddens, float* dvol,float* dmas, int n)
 {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);	// 粒子数=スレッド数としてブロック/グリッドサイズを計算
-	CxSphDensity<<<grid, block>>>(drestdens,ddens, dvol, n);	// カーネル実行
+	CxSphDensity<<<grid, block>>>(drestdens,ddens, dvol,dmas, n);	// カーネル実行
 	cudaThreadSynchronize();
 }
 
@@ -113,11 +113,11 @@ void CuSphVorticity(float* dvort, float* dvel, float* ddens, float* dvol, int* d
  * @param[in] datt 粒子属性(0で流体,1で境界)(デバイスメモリ)
  * @param[in] n 粒子数
  */
-void CuSphForces(float* drestdens,float* dacc, float* dvel, float* ddens, float* dpres, float* dvort, float* dvol, int* datt,float3 power,float* dfss, int n)
+void CuSphForces(float* drestdens,float* dacc, float* dvel, float* ddens, float* dpres, float* dvort, float* dvol,float* dmas, int* datt,float3 power,float* dfss, int n)
 {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);	// 粒子数=スレッド数としてブロック/グリッドサイズを計算
-	CxSphForces<<<grid, block>>>(drestdens,dacc, dvel, ddens, dpres, dvort, dvol, datt,power,dfss, n);	// カーネル実行
+	CxSphForces<<<grid, block>>>(drestdens,dacc, dvel, ddens, dpres, dvort, dvol,dmas, datt,power,dfss, n);	// カーネル実行
 	cudaThreadSynchronize();
 }
 /*!
@@ -130,11 +130,11 @@ void CuSphForces(float* drestdens,float* dacc, float* dvel, float* ddens, float*
 * @param[in] datt 粒子属性(0で流体粒子，それ以外で境界粒子)(デバイスメモリ)
 * @param[in] n 粒子数
 */
-void CuSphViscosityForces(float* drestdens,float* dacc, float* dvel, float* ddens, float* dvol, int* datt, int n)
+void CuSphViscosityForces(float* drestdens,float* dacc, float* dvel, float* ddens, float* dvol,float* dmas, int* datt, int n)
 {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);	// 粒子数=スレッド数としてブロック/グリッドサイズを計算
-	CxSphViscosity<<<grid, block>>>(drestdens,dacc, dvel, ddens, dvol, datt, n);	// カーネル実行
+	CxSphViscosity<<<grid, block>>>(drestdens,dacc, dvel, ddens, dvol,dmas, datt, n);	// カーネル実行
 	cudaThreadSynchronize();
 }
 
@@ -149,11 +149,11 @@ void CuSphViscosityForces(float* drestdens,float* dacc, float* dvel, float* dden
 * @param[in] datt 粒子属性(0で流体粒子，それ以外で境界粒子)(デバイスメモリ)
 * @param[in] n 粒子数
 */
-void CuSphXSPHViscosity(float* dvel, float* ddens, float* dvol, int* datt, int n)
+void CuSphXSPHViscosity(float* dvel, float* ddens, float* dvol,float* dmas, int* datt, int n)
 {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);	// 粒子数=スレッド数としてブロック/グリッドサイズを計算
-	CxSphXSPHViscosity<<<grid, block>>>(dvel, ddens, dvol, datt, n);	// カーネル実行
+	CxSphXSPHViscosity<<<grid, block>>>(dvel, ddens, dvol,dmas, datt, n);	// カーネル実行
 	cudaThreadSynchronize();
 }
 
@@ -583,13 +583,13 @@ void CuLocalTorqueStep(float* dquat,float* domega, float* dlen, float* dkbt, int
 //dpbf_lambda:制約に用いるλ
 //dvol:体積
 //n:粒子数
-void CuPbfConstraint(float* dpos,float* ddens,float* drestdens,float*dpbf_lambda,float*dvol,int n) {
+void CuPbfConstraint(float* dpos,float* ddens,float* drestdens,float*dpbf_lambda,float*dvol,float* dmas,int n) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
-	CxSphDensity << <grid, block >> > (drestdens, ddens, dvol, n);//密度計算
-	CxPbfLambda << <grid, block >> > (ddens,drestdens, dpbf_lambda, dvol, n);//制約に用いるλを求める
+	CxSphDensity << <grid, block >> > (drestdens, ddens, dvol,dmas, n);//密度計算
+	CxPbfLambda << <grid, block >> > (ddens,drestdens, dpbf_lambda, dvol,dmas, n);//制約に用いるλを求める
 	cudaThreadSynchronize();
-	CxPbfConstraint << <grid, block >> > (dpos, drestdens, dpbf_lambda, dvol, n);//制約処理
+	CxPbfConstraint << <grid, block >> > (dpos, drestdens, dpbf_lambda, dvol,dmas, n);//制約処理
 	cudaThreadSynchronize();
 }
 

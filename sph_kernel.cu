@@ -119,7 +119,7 @@ void collision(float3 &p, float3 &v, float dt)
  * @param[in] n 粒子数
  */
 __global__ 
-void CxSphDensity(float*drestdens,float* ddens, float* dvol, int n)
+void CxSphDensity(float*drestdens,float* ddens, float* dvol, float* dmas,int n)
 {
     // グリッド,ブロック内のスレッド位置を粒子インデックスとする
     int id = blockDim.x * blockIdx.x + threadIdx.x;
@@ -127,7 +127,7 @@ void CxSphDensity(float*drestdens,float* ddens, float* dvol, int n)
 
     float3 pos0 = params.cell.dSortedPos[id];
     float h = params.effective_radius;
-    //float m = params.mass;
+    float m = params.mass;
     float a = params.aw;
     float rest_dens = params.rest_dens;
     //インデックスの計算
@@ -161,9 +161,8 @@ void CxSphDensity(float*drestdens,float* ddens, float* dvol, int n)
                         if(r <= h){
                             // Poly6カーネルで密度を計算 (rho = Σ m Wij)
                             float q = h*h-r*r;
-                            // 流体粒子はrest_dens*dvol[sj] = mとなるように設定してある
-                            // 境界粒子は想体積と初期密度から複数層境界粒子があった場合の仮想質量Φ=ρ0*Vbを求めて使う 
-                            float m = rest_dens*dvol[sj];
+
+                            float m = params.mass;
 
                             dens += m*a*q*q*q;
                         }
@@ -309,7 +308,7 @@ void CxSphVorticity(float* dvort, float* dvel, float* ddens, float* dvol, int* d
 //海老沢power追加
 //海老沢dfss追加
 __global__ 
-void CxSphForces(float* drestdens,float* dacc, float* dvel, float* ddens, float* dpres, float* dvort, float* dvol, int* datt,float3 power,float* dfss, int n)
+void CxSphForces(float* drestdens,float* dacc, float* dvel, float* ddens, float* dpres, float* dvort, float* dvol,float* dmas, int* datt,float3 power,float* dfss, int n)
 {
     // グリッド,ブロック内のスレッド位置を粒子インデックスとする
     int id = blockDim.x * blockIdx.x + threadIdx.x;
@@ -333,9 +332,6 @@ void CxSphForces(float* drestdens,float* dacc, float* dvel, float* ddens, float*
     float h = params.h;
     //float m = params.mass;
     float a = params.ag;
-    float rest_dens = params.rest_dens;
-    //海老沢SPH追加
-    rest_dens = drestdens[sid];
 
     // パーティクル周囲のグリッド(caclGridPos内で境界処理あり)
     int3 grid_pos0, grid_pos1;
@@ -374,11 +370,7 @@ void CxSphForces(float* drestdens,float* dacc, float* dvel, float* ddens, float*
                             float q = h-r;
                             float3 gw = a*q*q*rij/r;
 
-                            // 流体粒子はrest_dens*dvol[sj] = mとなるように設定してある
-                            // 境界粒子は想体積と初期密度から複数層境界粒子があった場合の仮想質量Φ=ρ0*Vbを求めて使う 
-                            float m = rest_dens*dvol[sj];
-                            //海老沢SPH追加
-                           // m = 0.01;
+                            float m = params.mass;
 
                             f += -m*(prsi+prsj)*gw; // 圧力項の計算
                             eta += (m/dens1)*length(omega1)*gw;
@@ -388,17 +380,6 @@ void CxSphForces(float* drestdens,float* dacc, float* dvel, float* ddens, float*
             }
         }
     }
-    //海老沢11/16追加-------------------------------
-    float m = rest_dens * dvol[id];
-    //printf("mass:%f\n", m);
-    float3 fss0 = make_float3(dfss[(id - 1) * DIM], dfss[(id - 1) * DIM + 1], dfss[(id - 1) * DIM + 2]);
-    float3 fss1 = make_float3(dfss[id * DIM], dfss[id * DIM + 1], dfss[id * DIM + 2]);
-    float3 edge_power = (fss0 - fss1);
-    if (length(edge_power) > 1.0e3) printf("edge_power x:%f,y:%f,z:%f\n", edge_power.x, edge_power.y, edge_power.z);
-    edge_power.y = 0.f;
-    //power -= edge_power*0.01;
-    //f /= m;
-    //----------------------------------------------
     
     // 重力
     f += params.gravity+power;
@@ -426,7 +407,7 @@ void CxSphForces(float* drestdens,float* dacc, float* dvel, float* ddens, float*
 * @param[in] n 粒子数
 */
 __global__ 
-void CxSphViscosity(float* drestdens,float* dacc, float* dvel, float* ddens, float* dvol, int* datt, int n)
+void CxSphViscosity(float* drestdens,float* dacc, float* dvel, float* ddens, float* dvol,float* dmas, int* datt, int n)
 {
     // グリッド,ブロック内のスレッド位置を粒子インデックスとする
     int id = blockDim.x * blockIdx.x + threadIdx.x;
@@ -441,7 +422,6 @@ void CxSphViscosity(float* drestdens,float* dacc, float* dvel, float* ddens, flo
     float dens0 = ddens[sid];
 
     float h = params.h;
-    float m = params.mass;
     float a = params.ag;
     float alpha = params.viscosity;  // 粘性定数．論文だと[0.08, 0.5]と行っているがこれだと大きすぎる...
     float cs = 88.5;
@@ -477,6 +457,7 @@ void CxSphViscosity(float* drestdens,float* dacc, float* dvel, float* ddens, flo
                         float3 rij = pos0-pos1;
 
                         float dens1 = ddens[sj];
+                        float m = dmas[j];
                         float vx = dot(vel0-vel1, rij);
 
                         float r = length(rij);
@@ -484,7 +465,6 @@ void CxSphViscosity(float* drestdens,float* dacc, float* dvel, float* ddens, flo
                             float nu = (2.0f*alpha*h*cs)/(dens0+dens1);
                             float visc = -nu*(vx/(r*r+eps));
                             float q = h-r;
-                            //float m = rest_dens*dvol[sj];
                             f += -m*visc*a*q*q*rij/r;
                         }
                     }
@@ -509,7 +489,7 @@ void CxSphViscosity(float* drestdens,float* dacc, float* dvel, float* ddens, flo
 * @param[in] n 粒子数
 */
 __global__ 
-void CxSphXSPHViscosity(float* dvel, float* ddens, float* dvol, int* datt, int n)
+void CxSphXSPHViscosity(float* dvel, float* ddens, float* dvol,float* dmas, int* datt, int n)
 {
     // グリッド,ブロック内のスレッド位置を粒子インデックスとする
     int id = blockDim.x * blockIdx.x + threadIdx.x;
@@ -523,7 +503,6 @@ void CxSphXSPHViscosity(float* dvel, float* ddens, float* dvol, int* datt, int n
     float3 vel0 = make_float3(dvel[DIM*sid], dvel[DIM*sid+1], dvel[DIM*sid+2]);
 
     float h = params.h;
-    float m = params.mass;
     float a = params.aw;
     float eps = params.viscosity;
     float rest_dens = params.rest_dens;
@@ -553,6 +532,7 @@ void CxSphXSPHViscosity(float* dvel, float* ddens, float* dvol, int* datt, int n
                         float3 rij = pos0-pos1;
 
                         float dens1 = ddens[sj];
+                        float m = dmas[sj];
 
                         float r = length(rij);
                         if(r <= h && r > 0.0001){
@@ -1594,7 +1574,9 @@ void CxRestDensSet(float* dpos,float* dRestDens,float* dvol, float*dmas,int n) {
                             float q = h * h - r * r;
                             // 流体粒子はrest_dens*dvol[sj] = mとなるように設定してある
                             // 境界粒子は想体積と初期密度から複数層境界粒子があった場合の仮想質量Φ=ρ0*Vbを求めて使う 
-                            float m = rest_dens * dvol[sj];
+                            //float m = rest_dens * dvol[sj];
+                            //printf("mass %f\n", m);
+                            float m = params.mass;
                             dens += m * a * q * q * q;
                         }
                     }
@@ -1604,15 +1586,10 @@ void CxRestDensSet(float* dpos,float* dRestDens,float* dvol, float*dmas,int n) {
     }
 
 
-    // 計算した密度をグローバルメモリに書き込み
+    // 計算した密度をデバイスメモリに書き込み
     uint sid = params.cell.dSortedIndex[id];
     //最低限の密度を設定
-    //dRestDens[sid] = fmaxf(dens,rest_dens);//出村さんの設定方法
-    dRestDens[sid] = dens;
-
-    //11/16
-    //仮想体積の設定
-    //dvol[sid] = dmas[sid] / dens;
+    dRestDens[sid] = fmaxf(dens,rest_dens);//出村さんの設定方法
 }
 
 //一律の基準となる密度の設定
@@ -2326,7 +2303,7 @@ void CxLocalTorqueStep(float* dquat, float* domega, float* dlen,float* dkbt, int
 //dvol:体積
 //n:粒子数
 __global__
-void CxPbfLambda(float* ddens,float* drestdens,float* dpbf_lambda,float* dvol,int n) {
+void CxPbfLambda(float* ddens,float* drestdens,float* dpbf_lambda,float* dvol,float* dmas,int n) {
     // グリッド,ブロック内のスレッド位置を粒子インデックスとする
     int id = blockDim.x * blockIdx.x + threadIdx.x;
     if (id >= n) return; // 粒子数を超えるスレッドIDのチェック(余りが出ないようにブロック数などが設定できるなら必要ない)
@@ -2376,7 +2353,8 @@ void CxPbfLambda(float* ddens,float* drestdens,float* dpbf_lambda,float* dvol,in
                             if (r <= 1.0e-3f) continue;
                             if (r < h) {
                                 float q = h - r;
-                                float m = rest_dens * dvol[sj];//初期密度と体積から計算
+                                //float m = rest_dens * dvol[sj];//初期密度と体積から計算
+                                float m = dmas[sj];
                                 //Grad_J_Cを求める
                                 float3 grad_j_C = -m / rest_dens_j * (-params.ag * q * q * r_ij / r);//params.agにカーネルの勾配定数(spikyカーネル)が格納されている.m/\rho_rest*W(カーネル)
                                 lambda_denom_i += dot(grad_j_C, grad_j_C);
@@ -2404,7 +2382,7 @@ void CxPbfLambda(float* ddens,float* drestdens,float* dpbf_lambda,float* dvol,in
 //dvol:体積
 //n:粒子数
 __global__
-void CxPbfConstraint(float*dpos,float* drestdens,float* dpbf_lambda,float* dvol,int n) {
+void CxPbfConstraint(float*dpos,float* drestdens,float* dpbf_lambda,float* dvol,float* dmas,int n) {
     // グリッド,ブロック内のスレッド位置を粒子インデックスとする
     int id = blockDim.x * blockIdx.x + threadIdx.x;
     if (id >= n) return; // 粒子数を超えるスレッドIDのチェック(余りが出ないようにブロック数などが設定できるなら必要ない)
@@ -2415,6 +2393,8 @@ void CxPbfConstraint(float*dpos,float* drestdens,float* dpbf_lambda,float* dvol,
     uint sid = params.cell.dSortedIndex[id];
     //pbfの計算に必要なλを持ってくる
     float pbf_lambda_i = dpbf_lambda[sid];
+    //初期密度
+    float restdens_i = drestdens[id];
 
     // 粒子を中心として半径h内に含まれるグリッド(caclGridPos内で境界処理あり)
     int3 grid_pos0, grid_pos1;
@@ -2445,8 +2425,10 @@ void CxPbfConstraint(float*dpos,float* drestdens,float* dpbf_lambda,float* dvol,
                         if (r < h) {
                             float q;
                             q = h - r;
-                            float m = restdens_j * dvol[sj];//初期密度と体積から計算
-                            delta_pos_i += m / restdens_j * (pbf_lambda_i + pbf_lambda_j) * (params.ag * q * q * r_ij / r);
+                            float m = restdens_j * dvol[sj];//初期密度と体積から質量を計算
+                            //printf("pbf mass %f\n", m);
+                            m = dmas[sid];
+                            delta_pos_i += m / restdens_i * (pbf_lambda_i + pbf_lambda_j) * (params.ag * q * q * r_ij / r);
                         }
                     }
                 }

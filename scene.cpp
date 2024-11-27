@@ -653,8 +653,10 @@ void ScenePBD::initSPH(int max_particles,int num_elastic,float mass, bool use_bp
 		//海老沢追加---------------------------------------------------------------
 		env.max_particles = max_particles;//全体の粒子数の変更
 		env.gravity.y = -9.81f;//海老沢追加 重力加速度を無理やり変更
+		env.mass = mass;
+		//cout << "mass " << mass << endl;
 		env.dt = DT;
-		cout << "DT " << DT << endl;
+		//cout << "DT " << DT << endl;
 		//-------------------------------------------------------------------------
 
 		g_sim->Initialize(env,num_elastic);
@@ -927,6 +929,8 @@ void ScenePBD::XPBDParamsToDevice(int num_elasticbodies) {
 	}
 
 	g_sim->SetXPBD_Params(m_allnum, &Mass_array[0], &Length_array[0], &Kss_array[0], &Kbt_array[0], &Quat_array[0], &Darboux_array[0], &Fix_array[0],&Last_index[0]);
+	//SPHの質量設定
+	//g_sim->m_params.mass = Mass_array[0];
 }
 
 void ScenePBD::initMoreRod(bool sag_free_flag) {
@@ -952,21 +956,22 @@ void ScenePBD::initMoreRod(bool sag_free_flag) {
 	//Objファイルの読み込み
 	// 
 	// 
-	rxOBJ obj;
-	vector <glm::vec3> vrts,vnms;//頂点情報,法線情報
-	vector <rxFace> plys;//面情報
-	rxMTL mats;//材質情報
-	obj.Read("AssetsNotUsed/Rotated_wisps.obj", vrts, vnms, plys, mats);
+	// 
+	//rxOBJ obj;
+	//vector <glm::vec3> vrts,vnms;//頂点情報,法線情報
+	//vector <rxFace> plys;//面情報
+	//rxMTL mats;//材質情報
+	//obj.Read("AssetsNotUsed/Rotated_wisps.obj", vrts, vnms, plys, mats);
 
-	//ポリゴンへの設定
-	rxPolygonsE poly;
-	poly.vertices = vrts;
-	poly.faces = plys;
-	//エッジの探索
-	int edge_count=SearchEdge(poly);
-	cout << "edge_count" << edge_count << endl;
-	
-	SearchBoundaryEdge(poly);
+	////ポリゴンへの設定
+	//rxPolygonsE poly;
+	//poly.vertices = vrts;
+	//poly.faces = plys;
+	////エッジの探索
+	//int edge_count=SearchEdge(poly);
+	//cout << "edge_count" << edge_count << endl;
+	//
+	//SearchBoundaryEdge(poly);
 
 
 	//-----------------------------------------------------------------------------------------------------------------------------------------------
