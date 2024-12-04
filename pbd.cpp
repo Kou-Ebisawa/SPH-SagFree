@@ -1325,3 +1325,13 @@ bool ElasticPBD::judgePos(void) {
 	float lastPos = m_vCurPos[m_iNumVertices - 1].y;
 	return fixPos > lastPos;
 }
+
+//毛髪を反転させる
+void ElasticPBD::ArrayReverse(void) {
+	std::reverse(m_vMass.begin(), m_vMass.end());//質量
+	std::reverse(m_vLengths.begin(), m_vLengths.end());//基準長
+	std::reverse(m_NewKss.begin(), m_NewKss.end());//伸び剛性
+	std::reverse(m_NewKbt.begin(), m_NewKbt.end());//曲げ剛性
+	std::reverse(m_vQuat.begin(), m_vQuat.end());//姿勢
+	std::reverse(m_eOrgOmega.begin(), m_eOrgOmega.end());//基準ダルボーベクトル
+}

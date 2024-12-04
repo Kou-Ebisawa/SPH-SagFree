@@ -39,6 +39,9 @@
 //髪型アセットの作成
 #include "rx_obj.h"
 
+#include <ctime>
+#include <cstdlib>
+
 //-----------------------------------------------------------------------------
 // 定数・変数
 //-----------------------------------------------------------------------------
@@ -66,6 +69,9 @@ int g_colortype = SPH::C_CONSTANT;
 float g_bnd_scale = 1.0f;
 
 rxPolygons g_poly;
+
+//デバック用の表示する毛髪をランダムに選択
+int g_display_hair = -1;
 
 //-----------------------------------------------------------------------------
 // ScenePBDクラスのstatic変数の定義と初期化
@@ -148,9 +154,11 @@ void ScenePBD::drawHairObject(unsigned int vbo, int n, unsigned int color_vbo,un
 	//glBindVertexArray(g_sim->m_vao_pos);
 	int start = 0;
 	for (int i = 0; i < m_num_elasticbodies; i++) {
-
-		int count=m_elasticbodies[i]->GetNumParticles();
-		glDrawArrays(GL_LINE_STRIP, start, count);
+		int count = m_elasticbodies[i]->GetNumParticles();
+		if (g_display_hair<0||i==g_display_hair) {
+			//初期状態では全ての毛髪を表示，Nキーを一度押すと，ランダムに一本の毛髪のみを表示
+			glDrawArrays(GL_LINE_STRIP, start, count);
+		}
 		start += count;
 	}
 
@@ -219,6 +227,7 @@ void ScenePBD::Init(int argc, char* argv[])
 	//initCenterSpiralRod();
 	//initNaturalSpiralRod();
 	//initExampleRod();
+	//initMoreRod(false);//SagFreeがされない
 	initMoreRod(true);//SagFreeがされる
 }
 
@@ -410,6 +419,12 @@ void ScenePBD::Keyboard(GLFWwindow* window, int key, int mods)
 		m_elasticbody->UnFixAllVertex();
 		break;
 
+	case GLFW_KEY_N:
+		//ランダムに一本の毛髪を表示
+		srand((unsigned)time(NULL));
+		g_display_hair = rand() % m_num_elasticbodies;
+		break;
+
 	default:
 		break;
 	}
@@ -593,6 +608,7 @@ bool ScenePBD::readObjFile(const char* filename,vector<glm::vec3> &PosArray,vect
 		}
 	}
 }
+
 
 //髪型用にObjファイルを編集
 bool ScenePBD::MakeHairObjFile(const char* In_filename,const char* Out_filename) {
@@ -814,8 +830,8 @@ void ScenePBD::initElasticFromObj(vector<glm::vec3> PosArray, vector<glm::ivec2>
 			int index_pos0 = IndexArray[j].x;
 			int index_pos1 = IndexArray[j].y;
 
-			glm::vec3 pos0 = 5.f*PosArray[index_pos0];//位置を5倍している
-			glm::vec3 pos1 = 5.f*PosArray[index_pos1];
+			glm::vec3 pos0 = PosArray[index_pos0];//位置を5倍している
+			glm::vec3 pos1 = PosArray[index_pos1];
 
 			if (iter == 0)m_elasticbodies[i]->AddVertex(pos0, mass);
 
@@ -824,6 +840,11 @@ void ScenePBD::initElasticFromObj(vector<glm::vec3> PosArray, vector<glm::ivec2>
 			if (iter > 0)m_elasticbodies[i]->AddDarbouxVector(iter);
 			iter++;
 		}
+		//両端の点を比較し，y座標が大きい方を固定点とする．(基本は[0]が固定点とする)
+		if (m_elasticbodies[i]->GetVertexPos(0).y < m_elasticbodies[i]->GetVertexPos(iter).y) {//最後の頂点をiterでとれているかは少し不安
+			m_elasticbodies[i]->ArrayReverse();
+		}
+
 		fix_index++;
 		m_elasticbodies[i]->FixVertex(0);
 		
@@ -957,17 +978,24 @@ void ScenePBD::initMoreRod(bool sag_free_flag) {
 	// 
 	// 
 	// 
-	//rxOBJ obj;
-	//vector <glm::vec3> vrts,vnms;//頂点情報,法線情報
-	//vector <rxFace> plys;//面情報
-	//rxMTL mats;//材質情報
-	//obj.Read("AssetsNotUsed/Rotated_wisps.obj", vrts, vnms, plys, mats);
+	rxOBJ obj;
+	vector <glm::vec3> vrts,vnms;//頂点情報,法線情報
+	vector <rxFace> plys;//面情報
+	rxMTL mats;//材質情報
+	obj.Read("AssetsNotUsed/test.obj", vrts, vnms, plys, mats);
 
-	////ポリゴンへの設定
-	//rxPolygonsE poly;
-	//poly.vertices = vrts;
-	//poly.faces = plys;
-	////エッジの探索
+	//頂点列をクランプする
+	FitVertices(vrts);
+
+	//ポリゴンへの設定
+	rxPolygonsE poly;
+	poly.vertices = vrts;
+	poly.faces = plys;
+
+	//髪型アセットの作成
+	MakeHairObj("Test_Case",poly, 0.25);
+
+	//エッジの探索
 	//int edge_count=SearchEdge(poly);
 	//cout << "edge_count" << edge_count << endl;
 	//
@@ -982,14 +1010,12 @@ void ScenePBD::initMoreRod(bool sag_free_flag) {
 	vector<glm::vec3> PosArray;
 	vector<glm::ivec2> IndexArray;
 	vector<int> FixArray;
-	char* filename = "Assets/test.obj";
+	//char* filename = "Assets/test.obj";
 	
 	//一時的に変更
-	//char* filename = "AssetsNotUsed/Inter_Test.obj";
+	char* filename = "AssetsNotUsed/Test_Case_hair_1024.obj";
 
-	//HairObjを作る
-	//MakeHairObjFile("Assets/Meta_human.obj", "Assets/Meta_human_Hair.obj");
-
+	//Objファイルを読む
 	readObjFile(filename, PosArray, IndexArray, FixArray);
 	//test.objの場合、回転をさせる
 	if (strcmp(filename, "Assets/3000.obj")) {
@@ -1182,7 +1208,69 @@ void ScenePBD::clearPick(void)
 	m_picked = -1;
 }
 
+//座標群を(0,1)にフィットさせる
+void ScenePBD::FitVertices(vector<glm::vec3> &vertices) {
+	int size = vertices.size();
+	float x_num, y_num, z_num;
+	x_num = y_num = z_num = 0;
+	float x_max, x_min, y_max, y_min, z_max, z_min;
+	//平均値のための計算
+	for (int i = 0; i < size; i++) {
+		glm::vec3 v = vertices[i];
+		x_num += v.x;
+		y_num += v.y;
+		z_num += v.z;
+	}
 
+	float x_ave = x_num / size;
+	float y_ave = y_num / size;
+	float z_ave = z_num / size;
+
+	//平均値を原点に持ってくる
+	for (int i = 0; i < size; i++) {
+		//全ての点がほぼ同じ位置にある場合などは想定していない
+		glm::vec3 v = vertices[i];
+		v -= glm::vec3(x_ave, y_ave, z_ave);
+
+		if (i == 0) {
+			x_max = x_min = v.x;
+			y_max = y_min = v.y;
+			z_max = z_min = v.z;
+		}
+		else {
+			//最大値の更新
+			if (x_max < v.x) x_max = v.x;
+			if (y_max < v.y) y_max = v.y;
+			if (z_max < v.z) z_max = v.z;
+
+			//最小値の更新
+			if (v.x < x_min) x_min = v.x;
+			if (v.y < y_min) y_min = v.y;
+			if (v.z < z_min) z_min = v.z;
+		}
+		vertices[i] = v;
+	}
+
+	float range_x = abs(x_max - x_min);//念のため絶対値に
+	float range_y = abs(y_max - y_min);
+	float range_z = abs(z_max - z_min);
+
+	float max_range = max(max(range_x, range_y), range_z);
+
+	for (int i = 0; i < size; i++) {
+		glm::vec3 v = vertices[i];
+		float x_new = (v.x - x_min) / max_range;
+		float y_new = (v.y - y_min) / max_range;
+		float z_new = (v.z - z_min) / max_range;
+
+		//形状によって少し変える必要場ある．
+		//アセット用
+		//vertices[i] = glm::vec3(x_new - 0.1, y_new - 0.5, z_new - 0.25) * 1.75f;
+		//頂いたObjファイル用
+		vertices[i] = glm::vec3(x_new - 0.5, y_new - 0.5, z_new - 0.4) * 1.5f;
+	}
+
+}
 
 
 

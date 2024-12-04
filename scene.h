@@ -150,6 +150,9 @@ public:
 	static void drawHairObject(unsigned int vbo, int n, unsigned int color_vbo,unsigned int normal_vbo, float* data, int offset, double pscale, double prad, double czf = 1000, double czb = -1000);
 	//風の強さを変える
 	static void ChangeWindPower(float3 wind);
+
+	//OBJファイルを(0,1)でクランプする
+	static void FitVertices(vector<glm::vec3> &vertices);
 	//-----------------------------------------------------------
 
 private:

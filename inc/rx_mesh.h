@@ -2414,4 +2414,40 @@ static inline int SearchBoundaryEdge(rxPolygonsE& obj) {
 
 
 
+//頂点だけを取って，閾値を設定して，これを超えたら，毛髪が分かれると仮定する．
+static void MakeHairObj(string filename,rxPolygonsE& obj,float T) {
+	vector <Edge_Vert> g_hair;
+	Edge_Vert Strand;
+	for (int i = 0; i < obj.vertices.size();i++) {
+		glm::vec3 v = obj.vertices[i];
+		if (Strand.vertices.empty()) {
+			//最初のみの処理
+			Strand.vertAdd(v);
+		}
+		else {
+			glm::vec3 last_vert = Strand.vertices[Strand.vertices.size() - 1];
+			if (glm::length(v - last_vert) > T) {//直前のエッジとの距離が閾値を超えたら，一つの毛髪の列が終わったこととする．
+				g_hair.push_back(Strand);
+				Strand.Clear();
+			}
+			else {//毛髪が連続しているならエッジを追加する
+				rxEdge e;
+				Strand.edgeAdd(e);
+			}
+			Strand.vertAdd(v);
+		}
+	}
+	SaveInterObj("AssetsNotUsed/" + filename + "_hair.obj", g_hair);
+
+	//ランダムに1024本を選択して，そのObjファイルを作る
+	vector<Edge_Vert> limit_hairs;
+	srand((unsigned int)time(NULL));
+	for (int i = 0; i < 1024; i++) {
+		int num = g_hair.size();
+		limit_hairs.push_back(g_hair[rand() % num]);
+	}
+
+	SaveInterObj("AssetsNotUsed/" + filename + "_hair_1024.obj", limit_hairs);
+}
+
 #endif // #ifndef _RX_MESH_H_

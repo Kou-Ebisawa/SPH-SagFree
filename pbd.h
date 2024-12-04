@@ -140,6 +140,8 @@ public:
 	void SetVertexAcc(vector<float> data, int start, int num);
 	void SetVertexPos(vector<float> data, int start, int num);
 	void SetVertexCurPos(vector<float> data, int start, int num);
+
+	void ArrayReverse(void);
 	//---------------------------------------------------------
 
 	// 固定点設定
