@@ -142,6 +142,7 @@ public:
 	void SetVertexCurPos(vector<float> data, int start, int num);
 
 	void ArrayReverse(void);
+	void ReduceVertices(int num);
 	//---------------------------------------------------------
 
 	// 固定点設定

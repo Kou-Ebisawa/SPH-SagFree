@@ -227,8 +227,8 @@ void ScenePBD::Init(int argc, char* argv[])
 	//initCenterSpiralRod();
 	//initNaturalSpiralRod();
 	//initExampleRod();
-	//initMoreRod(false);//SagFreeがされない
-	initMoreRod(true);//SagFreeがされる
+	initMoreRod(false);//SagFreeがされない
+	//initMoreRod(true);//SagFreeがされる
 }
 
 
@@ -982,7 +982,7 @@ void ScenePBD::initMoreRod(bool sag_free_flag) {
 	vector <glm::vec3> vrts,vnms;//頂点情報,法線情報
 	vector <rxFace> plys;//面情報
 	rxMTL mats;//材質情報
-	obj.Read("AssetsNotUsed/test.obj", vrts, vnms, plys, mats);
+	obj.Read("AssetsNotUsed/Curl.obj", vrts, vnms, plys, mats);
 
 	//頂点列をクランプする
 	FitVertices(vrts);
@@ -993,7 +993,8 @@ void ScenePBD::initMoreRod(bool sag_free_flag) {
 	poly.faces = plys;
 
 	//髪型アセットの作成
-	MakeHairObj("Test_Case",poly, 0.25);
+	int num = 22;//目標は32
+	MakeHairObj("Test_Case", poly, 0.25, num);
 
 	//エッジの探索
 	//int edge_count=SearchEdge(poly);
@@ -1010,9 +1011,11 @@ void ScenePBD::initMoreRod(bool sag_free_flag) {
 	vector<glm::vec3> PosArray;
 	vector<glm::ivec2> IndexArray;
 	vector<int> FixArray;
-	//char* filename = "Assets/test.obj";
+	//char* filename = "Assets/Test_Case/Test_Case_hair.obj";
 	
 	//一時的に変更
+	//char* filename = "Assets/1024-32/Curly.obj";
+
 	char* filename = "AssetsNotUsed/Test_Case_hair_1024.obj";
 
 	//Objファイルを読む
@@ -1265,13 +1268,15 @@ void ScenePBD::FitVertices(vector<glm::vec3> &vertices) {
 
 		//形状によって少し変える必要場ある．
 		//アセット用
-		//vertices[i] = glm::vec3(x_new - 0.1, y_new - 0.5, z_new - 0.25) * 1.75f;
+		glm::vec3 scale(1.35, 1.f, 1.35);
+		vertices[i] = glm::vec3((x_new - 0.1) * scale[0], (y_new - 0.5) * scale[1], (z_new - 0.25) * scale[2]) * 2.0f;
 		//頂いたObjファイル用
-		vertices[i] = glm::vec3(x_new - 0.5, y_new - 0.5, z_new - 0.4) * 1.5f;
+		//vertices[i] = glm::vec3(x_new - 0.5, y_new - 0.5, z_new - 0.4) * 1.5f;
 	}
 
 }
 
+//計算点の数を制限する
 
 
 

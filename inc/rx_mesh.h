@@ -2415,7 +2415,7 @@ static inline int SearchBoundaryEdge(rxPolygonsE& obj) {
 
 
 //頂点だけを取って，閾値を設定して，これを超えたら，毛髪が分かれると仮定する．
-static void MakeHairObj(string filename,rxPolygonsE& obj,float T) {
+static void MakeHairObj(string filename,rxPolygonsE& obj,float T,int num) {
 	vector <Edge_Vert> g_hair;
 	Edge_Vert Strand;
 	for (int i = 0; i < obj.vertices.size();i++) {
@@ -2437,6 +2437,62 @@ static void MakeHairObj(string filename,rxPolygonsE& obj,float T) {
 			Strand.vertAdd(v);
 		}
 	}
+
+	//作った毛髪に対して，計算点の数を調整
+	for (int j = 0; j < g_hair.size(); j++) {
+		Edge_Vert g_Strand = g_hair[j];
+
+		//計算点の数を調整する
+		//cout << "num" << num << endl;
+		if (g_Strand.vertices.size() > num) {
+			vector<glm::vec3> AllVertices;
+			AllVertices = g_Strand.vertices;
+
+			int size = AllVertices.size();
+
+			//商
+			int step = (size - 2) / (num - 1);
+			//あまり
+			int rest = (size - 2) % (num - 1);
+
+			//対象としているストランドを削除
+			g_Strand.Clear();
+
+			//固定点のあぶりだしの際には最後の点に
+			int count = 0;
+			g_Strand.vertAdd(AllVertices[count]);
+
+			for (int i = 0; i < num - 2; i++) {
+				//短いエッジを検出する場合はマイナスにする
+				count += step;
+				//余りがあるならそれを追加する．(なので，計算点の上の方が間隔が広くなる．)
+				if (rest>0) {
+					count++;
+					//固定点を根元に取らない場合
+					//count--;
+					rest--;
+				}
+
+				rxEdge e;
+				g_Strand.edgeAdd(e);
+				g_Strand.vertAdd(AllVertices[count]);
+			}
+			rxEdge e;
+			g_Strand.edgeAdd(e);
+			//通常
+			g_Strand.vertAdd(AllVertices[AllVertices.size() - 1]);
+
+			//固定点のあぶり出し
+			//g_Strand.vertAdd(AllVertices[0]);
+
+			//cout << "Strand " << j << ": size " << g_Strand.vertices.size() << endl;
+
+			g_hair[j] = g_Strand;
+			//cout << "g_hair " << j << ": size " << g_hair[j].vertices.size() << endl;
+		}
+	}
+
+
 	SaveInterObj("AssetsNotUsed/" + filename + "_hair.obj", g_hair);
 
 	//ランダムに1024本を選択して，そのObjファイルを作る

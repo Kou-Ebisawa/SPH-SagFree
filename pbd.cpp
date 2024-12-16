@@ -1335,3 +1335,18 @@ void ElasticPBD::ArrayReverse(void) {
 	std::reverse(m_vQuat.begin(), m_vQuat.end());//姿勢
 	std::reverse(m_eOrgOmega.begin(), m_eOrgOmega.end());//基準ダルボーベクトル
 }
+
+//計算点の数を一定まで減らす
+void ElasticPBD::ReduceVertices(int num) {
+	if (num <= m_iNumVertices) return;
+
+	//最初の固定点は残す，残りの計算点数がnumになるように調整する．
+	int spatial = m_iNumVertices / num;
+
+	vector<glm::vec3> vertices;
+	vertices.push_back(m_vNewPos[0]);
+
+	for (int i = 0; i < num; i++) {
+
+	}
+}
