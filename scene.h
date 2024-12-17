@@ -170,7 +170,7 @@ private:
 	static void initCenterSpiralRod(void);
 	static void initNaturalSpiralRod(void);
 	static void initExampleRod(void);
-	static void initMoreRod(bool sag_free_flag);
+	static void initMoreRod(char* filename, bool sag_free_flag);
 
 	// マウスピック
 	static void clearPick(void);

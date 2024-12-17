@@ -222,13 +222,15 @@ void ScenePBD::Init(int argc, char* argv[])
 	m_draw |= RXD_BBOX;
 	m_draw |= RXD_FLOOR;
 
+	char* filename = "Assets/1024-32/Curly(22).obj";
+
 	// PBD初期設定
 	//initStraightRod();
 	//initCenterSpiralRod();
 	//initNaturalSpiralRod();
 	//initExampleRod();
-	initMoreRod(false);//SagFreeがされない
-	//initMoreRod(true);//SagFreeがされる
+	initMoreRod(filename, false);//SagFreeがされない
+	//initMoreRod("filename",true);//SagFreeがされる
 }
 
 
@@ -464,21 +466,28 @@ void ScenePBD::ImGui(GLFWwindow* window)
 	ImGui::CheckboxFlags("axis", &m_draw, RXD_AXIS);
 	ImGui::CheckboxFlags("floor", &m_draw, RXD_FLOOR);
 	ImGui::Separator();
-	//直線型の毛髪を表示
-	//if (ImGui::Button("Straight")) { initStraightRod(); }
-	//重心が毛髪の中央にある螺旋型の毛髪
-	//if (ImGui::Button("CenterSpiral")) { initCenterSpiralRod(); }
-	//一般の螺旋型の毛髪
-	//if (ImGui::Button("NaturalSpiral")) { initNaturalSpiralRod(); }
 	//実験的に毛髪を設定する際に利用
-	if (ImGui::Button("ExampleRod")) { initExampleRod(); }
+	if (ImGui::Button("HairInteraction")) { initExampleRod(); }
+	ImGui::Separator();
+	//各髪型のファイル定義
+	char* CurlHairFile = "Assets/1024-32/Curly(22).obj";
+	char* WavyHairFile = "Assets/1024-32/Wind_Straight.obj";
+	char* BobHairFile = "Assets/1024/Test_Case_hair_1024.obj";
 	//髪型を読み込みSagFree処理をする
-	if (ImGui::Button("MoreRod(With SagFree)")) { initMoreRod(true); }
+	if (ImGui::Button("CurlHair(SagFree)")) { initMoreRod(CurlHairFile, true); }
 	//髪型を読み込むが，SagFreeをしない
-	if (ImGui::Button("MoreRod(Not SagFree)")) { initMoreRod(false); }
-
-	//風を設定
-	if (ImGui::Button("AddWind")) { ChangeWindPower(make_float3(30.f, 0.f, 0.0f)); }
+	if (ImGui::Button("CurlHair")) { initMoreRod(CurlHairFile, false); }
+	ImGui::Separator();
+	if (ImGui::Button("WavyHair(SagFree)")) { initMoreRod(WavyHairFile, true); }
+	if (ImGui::Button("WavyHair")) { initMoreRod(WavyHairFile, false); }
+	ImGui::Separator();
+	if (ImGui::Button("BobHair(SagFree)")) { initMoreRod(BobHairFile, true); }
+	if (ImGui::Button("BobHair")) { initMoreRod(BobHairFile, false); }
+	ImGui::Separator();
+	//強い風を設定
+	if (ImGui::Button("AddStrongWind")) { ChangeWindPower(make_float3(30.f, 0.f, 0.f)); }
+	//弱い風を設定
+	if (ImGui::Button("AddWeakWind")) { ChangeWindPower(make_float3(10.0f, 0.f, 0.f)); }
 	//風を止める
 	if (ImGui::Button("QuitWind")) { ChangeWindPower(make_float3(0.f, 0.f, 0.0f)); }
 
@@ -954,7 +963,7 @@ void ScenePBD::XPBDParamsToDevice(int num_elasticbodies) {
 	//g_sim->m_params.mass = Mass_array[0];
 }
 
-void ScenePBD::initMoreRod(bool sag_free_flag) {
+void ScenePBD::initMoreRod(char* filename,bool sag_free_flag) {
 	switchanimation(false);
 
 	m_draw |= RXD_VERTEX;
@@ -962,7 +971,7 @@ void ScenePBD::initMoreRod(bool sag_free_flag) {
 
 	m_currentstep = 0;
 	float ks = 20.f;//伸び剛性
-	float kbt = 5.f;//曲げ剛性(20.fで形崩れる)
+	float kbt = 5.f;//曲げ剛性
 
 	//後からobjファイル内で定義するため，この初期値に意味はない
 	int num_elasticbodies = 10;//弾性体の数
@@ -978,23 +987,24 @@ void ScenePBD::initMoreRod(bool sag_free_flag) {
 	// 
 	// 
 	// 
-	rxOBJ obj;
-	vector <glm::vec3> vrts,vnms;//頂点情報,法線情報
-	vector <rxFace> plys;//面情報
-	rxMTL mats;//材質情報
-	obj.Read("AssetsNotUsed/Curl.obj", vrts, vnms, plys, mats);
+	// objファイルを作成する場合
+	//rxOBJ obj;
+	//vector <glm::vec3> vrts,vnms;//頂点情報,法線情報
+	//vector <rxFace> plys;//面情報
+	//rxMTL mats;//材質情報
+	//obj.Read("AssetsNotUsed/Curl.obj", vrts, vnms, plys, mats);
 
-	//頂点列をクランプする
-	FitVertices(vrts);
+	////頂点列をクランプする
+	//FitVertices(vrts);
 
-	//ポリゴンへの設定
-	rxPolygonsE poly;
-	poly.vertices = vrts;
-	poly.faces = plys;
+	////ポリゴンへの設定
+	//rxPolygonsE poly;
+	//poly.vertices = vrts;
+	//poly.faces = plys;
 
-	//髪型アセットの作成
-	int num = 22;//目標は32
-	MakeHairObj("Test_Case", poly, 0.25, num);
+	////髪型アセットの作成
+	//int num = 22;//目標は32
+	//MakeHairObj("Test_Case", poly, 0.25, num);
 
 	//エッジの探索
 	//int edge_count=SearchEdge(poly);
@@ -1016,7 +1026,7 @@ void ScenePBD::initMoreRod(bool sag_free_flag) {
 	//一時的に変更
 	//char* filename = "Assets/1024-32/Curly.obj";
 
-	char* filename = "AssetsNotUsed/Test_Case_hair_1024.obj";
+	//char* filename = "AssetsNotUsed/Test_Case_hair_1024.obj";
 
 	//Objファイルを読む
 	readObjFile(filename, PosArray, IndexArray, FixArray);
