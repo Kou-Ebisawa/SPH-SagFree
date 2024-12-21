@@ -44,7 +44,7 @@ void CuCollisionConstraint(float* dpos, float* dvel, int* dfix, float3 center, f
 //時間積分
 void CuIntegrate(float* dpos, float* dcurpos, float* dvel, float dt, int n, bool vel_control);
 //外力計算
-void CuCalExternalForces(float* dpos, float* dmass, float* dvel, int* dfix,float3 gravity, float3 wind, float dt, int n);
+void CuCalExternalForces(float* dpos, float* dmass, float* dvel, int* dfix, float3 gravity, float3 wind, float dt, int n);
 //PBDの位置ベース法
 void CuPBDStretchingConstraint(float* dpos, float* dmas, float* dlen, float* dkss, float* dquat, int* dfix, int n, int iter);
 //現在のある配列の出力(デバック用)
@@ -76,7 +76,7 @@ void CuLocalTorqueStep(float* dquat, float* domega, float* dlen, float* dkbt, in
 //密度制約
 void CuPbfConstraint(float* dpos, float* ddens, float* drestdens, float* dpbf_lambda, float* dvol,float*dmas, int n);
 //PBFで解く場合の外力計算
-void CuPbfExternalForces(float* dacc, int* datt, float3 power, int n);
+void CuPbfExternalForces(float* dacc, int* datt, float3 power, bool wind_flag, int n);
 //摩擦制約
 void CuFrictionConstraint(float* dpos, float* dcurpos, float* drestdens, float* dvol, float* ddens, int* dfix, int n);
 //摩擦制約の後，姿勢を修正する

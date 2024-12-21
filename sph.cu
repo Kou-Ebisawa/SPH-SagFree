@@ -598,10 +598,10 @@ void CuPbfConstraint(float* dpos,float* ddens,float* drestdens,float*dpbf_lambda
 //datt:—±q‘®«(0‚Å—¬‘Ì,1‚Å‹«ŠE)
 //power:•—‚È‚Ç‚Ì—Í
 //n:—±q”
-void CuPbfExternalForces(float* dacc, int* datt, float3 power, int n) {
+void CuPbfExternalForces(float* dacc, int* datt, float3 power,bool wind_flag, int n) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
-	CxPbfExternalForces << <grid, block >> > (dacc, datt, power, n);
+	CxPbfExternalForces << <grid, block >> > (dacc, datt, power, wind_flag, n);
 	cudaThreadSynchronize();
 }
 

@@ -26,9 +26,6 @@
 #include <deque>
 
 
-
-
-
 //-----------------------------------------------------------------------------
 // MARK:SPHクラスの宣言
 //  - Miles Macklin and Matthias Muller, "Position Based Fluids", Proc. SIGGRAPH 2013, 2013. 
@@ -152,7 +149,11 @@ public:
 	int m_numElastic;  //弾性体の数
 	// 頂点配列オブジェクト
 	uint m_vao_pos;//計算点配列VAO
-	float3 m_wind_power;//SPHの際に与える風の強さ
+
+	//SPHの際に与える風の強さ
+	float3 m_wind_power;
+	//風の力による変形を適用するかどうか
+	bool m_wind_flag;
 	//衝突を行う球の設定
 	float3 m_center;
 	float m_rad;
@@ -215,7 +216,7 @@ public:
 	void SetXPBD_Params(int max_particles, const void* mass, const void* length, const void* kss, const void* kbt, const void* quat, const void* darboux,const void* fix,const void* last_index);
 	//void SetXPBD_Params(int max_particles, const void* mass, const void* quat);
 	//海老沢追加 SagFree処理を行う
-	void SagFree(void);
+	void SagFree(glm::vec3 gravity);
 
 	// 陰関数値計算
 	float GetImplicit(float x, float y, float z);

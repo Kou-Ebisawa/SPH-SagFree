@@ -19,6 +19,8 @@
 
 #include "sph.cuh"	// CUDAによるSPH計算
 
+//サイズ感を表すパラメータ(12/20追加)
+float g_simulation_size_sph = 2.5;
 
 //-----------------------------------------------------------------------------
 // 定義
@@ -118,17 +120,19 @@ void SPH::Initialize(const SceneParameter &env,int num_elastic)
 	m_params = env;
 	m_params.rest_dens = env.dens;
 	//海老沢追加--------------------------------------------------------------------------
-	m_params.rest_dens = 8.0e4;//9.8e3,8.0e3
+	m_params.rest_dens = 8.0e4 / (g_simulation_size_sph*2.0);//9.8e3,8.0e3,小さいサイズ感なら8.0e4
 	m_params.mass = 0.1;
 	cout << "max particles " << m_params.max_particles << endl;
 
 	//風の設定(GUIで一つの値を適用したり、解除したりできる)
 	m_wind_power = make_float3(0.f, 0.f, 0.f);
 	//衝突をする球との判定
-	m_center = make_float3(-5.0, 0.0, 0.0);
-	m_rad = 0.35;
+	m_center = make_float3(-5.0*g_simulation_size_sph, 0.0, 0.0) ;
+	m_rad = 0.35 * g_simulation_size_sph;
 	//ExampleRodの場合，重みや処理の一部を変更する必要があるため，フラグで管理する
 	m_example_flag = false;
+	//シミュレーション開始時は風を吹かせない
+	m_wind_flag = false;
 	//------------------------------------------------------------------------------------ 
 	// 有効半径などの計算
 	float volume = m_params.max_particles*m_params.mass/ m_params.rest_dens;
@@ -174,6 +178,10 @@ void SPH::Initialize(const SceneParameter &env,int num_elastic)
 	glm::vec3 bext = glm::vec3(env.boundary_ext.x, env.boundary_ext.y, env.boundary_ext.z);
 	m_envmin = bcen-bext;
 	m_envmax = bcen+bext;
+
+	//大きいサイズ感
+	m_envmin *= g_simulation_size_sph;
+	m_envmax *= g_simulation_size_sph;
 
 	cout << "simlation range : " << glm::to_string(m_envmin) << " - " << glm::to_string(m_envmax) << endl;
 
@@ -268,10 +276,10 @@ void SPH::Allocate(int max_particles)
 }
 
 //海老沢追加
-void SPH::SagFree(void) {
+void SPH::SagFree(glm::vec3 user_gravity) {
 	float* pos = (float*)CuMapGLBufferObject(&m_cgr_pos);
 
-	CuGlobalForceStep(pos,m_d_fss, m_d_mass, m_d_last_index, make_float3(0, -9.81, 0), m_d_dens, m_d_rest_density, m_d_vol, m_numElastic);
+	CuGlobalForceStep(pos, m_d_fss, m_d_mass, m_d_last_index, make_float3(user_gravity.x, user_gravity.y, user_gravity.z), m_d_dens, m_d_rest_density, m_d_vol, m_numElastic);
 
 	CuLocalForceStep(pos, m_d_rest_length, m_d_quat,m_d_curquat, m_d_kss, m_d_fss, m_d_fix, m_num_particles);
 	//トルクの計算
@@ -441,10 +449,9 @@ bool SPH::Update(float dt, int step)
 	// CUDAカーネルによる粒子処理
 	CuSphDensity(m_d_rest_density, m_d_dens, m_d_vol, m_d_mass, m_num_particles);	// 密度計算
 	if (sph) CuSphPressure(m_d_rest_density, m_d_pres, m_d_dens, m_num_particles);	// 圧力計算
-	CuSphVorticity(m_d_vort, m_d_vel, m_d_dens, m_d_vol, m_d_attr, m_num_particles);	// 渦度計算
 	if (sph) CuSphForces(m_d_rest_density, m_d_acc, m_d_vel, m_d_dens, m_d_pres, m_d_vort, m_d_vol, m_d_mass, m_d_attr, m_wind_power, m_d_fss, m_num_particles);	// 粒子にかかる力(圧力項&外力項)の計算
 	//海老沢追加
-	if (pbf) CuPbfExternalForces(m_d_acc, m_d_attr, m_wind_power, m_num_particles);
+	if (pbf) CuPbfExternalForces(m_d_acc, m_d_attr, m_wind_power, m_wind_flag, m_num_particles);
 	m_method_visc = 2;
 	if(m_method_visc == 1){	// WCSPHの論文での粘性項の計算．粘性項を粒子にかかる力として計算する
 		CuSphViscosityForces(m_d_rest_density, m_d_acc, m_d_vel, m_d_dens, m_d_vol, m_d_mass, m_d_attr, m_num_particles);	// 粘性項の計算
@@ -472,7 +479,7 @@ bool SPH::Update(float dt, int step)
 
 	//密度制約の利用
 	if (pbf) {
-		for (int i = 0; i < 10; i++) {//反復回数元は2回
+		for (int i = 0; i < 5; i++) {//反復回数元は2回
 			//密度制約のためにソートしなおす
 			SetParticlesToCell(pos, m_d_vel, m_num_particles, h);
 			//密度制約(仮想体積とした場合，不安定になる．)
@@ -502,7 +509,7 @@ bool SPH::Update(float dt, int step)
 
 	//衝突制約
 	//球を動かす
-	float3 SphereVel = make_float3(3.0, 0.0, 0.0);
+	float3 SphereVel = make_float3(3.0 * g_simulation_size_sph, 0.0, 0.0);
 	//MoveSphere(SphereVel, dt);
 
 	CuCollisionConstraint(pos, m_d_vel, m_d_fix, m_center, m_rad, dt, m_num_particles);

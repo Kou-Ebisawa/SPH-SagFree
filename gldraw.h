@@ -29,9 +29,6 @@
 
 using namespace std;
 
-
-
-
 //! OpenGLのエラーチェック
 // see https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glGetError.xhtml
 static inline void CheckGLError(const char *func, const char *file, int line)

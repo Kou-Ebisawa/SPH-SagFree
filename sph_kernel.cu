@@ -579,7 +579,7 @@ void CxSphIntegrate(float* dpos, float* dvel, float* dacc, int* datt,int* dfix, 
     }
     //海老沢追加
     //固定点ならば、速度を0にして処理をスキップ
-    if (dfix[id] == 1||id==0||dfix[id-1]==1) {
+    if (dfix[id] == 1||id==0 || dfix[id - 1] == 1) {// 
         float3 v0 = make_float3(0.0f);
         dvel[DIM * id + 0] = v0.x;  dvel[DIM * id + 1] = v0.y; dvel[DIM * id + 2] = v0.z;
         return;
@@ -651,7 +651,7 @@ void CxSphIntegratePosition(float* dpos, float* dvel, int* datt,int* dfix, int n
 
     //海老沢追加
     //固定点ならば、速度を0にして処理をスキップ
-    if (dfix[id] == 1 || id == 0 || dfix[id - 1] == 1) {
+    if (dfix[id] == 1 || id == 0 || dfix[id - 1] == 1) { 
         float3 v0 = make_float3(0.0f);
         dvel[DIM * id + 0] = v0.x;  dvel[DIM * id + 1] = v0.y; dvel[DIM * id + 2] = v0.z;
         return;
@@ -1050,7 +1050,7 @@ void CxStretchingShearConstraint(float* dpos,float* dcurpos, float* dmas, float*
     id = id * 2 + odd_even;
     
     if (id >= n-1) return; // 粒子数を超えるスレッドIDのチェック(余りが出ないようにブロック数などが設定できるなら必要ない) 最後の粒子はスキップ
-    if (dfix[id] == 1 || dfix[id + 1] == 1) return;//弾性体毎に辺の数だけ行う
+    if (dfix[id] == 1 || dfix[id + 1] == 1) return;//弾性体毎に辺の数だけ行う 
 
     float3 pos0 = make_float3(dpos[DIM * id], dpos[DIM * id + 1], dpos[DIM * id + 2]);
     float3 pos1 = make_float3(dpos[DIM * (id + 1)], dpos[DIM * (id + 1) + 1], dpos[DIM * (id + 1) + 2]);
@@ -2448,7 +2448,7 @@ void CxPbfConstraint(float*dpos,float* drestdens,float* dpbf_lambda,float* dvol,
 //power:風などの力
 //n:粒子数
 __global__
-void CxPbfExternalForces(float* dacc, int* datt, float3 power, int n) {
+void CxPbfExternalForces(float* dacc, int* datt, float3 power, bool m_wind_flag, int n) {
     int id = blockDim.x * blockIdx.x + threadIdx.x;
     if (id >= n) return;
 
@@ -2460,7 +2460,11 @@ void CxPbfExternalForces(float* dacc, int* datt, float3 power, int n) {
     }
 
     float3 acc = make_float3(dacc[DIM * id], dacc[DIM * id + 1], dacc[DIM * id + 2]);
-    acc = params.gravity + power;
+    acc = params.gravity;
+
+    if (m_wind_flag) {
+        acc += power;
+    }
 
     dacc[DIM * id] = acc.x;
     dacc[DIM * id + 1] = acc.y;

@@ -73,6 +73,12 @@ rxPolygons g_poly;
 //デバック用の表示する毛髪をランダムに選択
 int g_display_hair = -1;
 
+//サイズ感を表すパラメータ(12/20追加)
+float g_simulation_size_scene = 2.5;
+
+//サイズ感を変えたことによる重力の変更
+glm::vec3 g_user_gravity = glm::vec3(0.f, -9.81f, 0.f) / (g_simulation_size_scene * 4.0f);
+
 //-----------------------------------------------------------------------------
 // ScenePBDクラスのstatic変数の定義と初期化
 //-----------------------------------------------------------------------------
@@ -222,7 +228,10 @@ void ScenePBD::Init(int argc, char* argv[])
 	m_draw |= RXD_BBOX;
 	m_draw |= RXD_FLOOR;
 
-	char* filename = "Assets/1024-32/Curly(22).obj";
+	//利用するファイルの指定
+	//char* filename = "Assets/1024-32/Curly(22).obj";
+	//テスト用
+	char* filename = "Assets/LargeSize(1024-32)/Bob(24).obj";
 
 	// PBD初期設定
 	//initStraightRod();
@@ -262,16 +271,16 @@ void ScenePBD::Draw(void)
 
 	// 床描画
 	glEnable(GL_LIGHTING);
-	//glm::vec3 lightpos(100 * RX_LIGHT0_POS[0], 100 * RX_LIGHT0_POS[1], 100 * RX_LIGHT0_POS[2]);//大きいサイズ感
-	glm::vec3 lightpos(RX_LIGHT0_POS[0],RX_LIGHT0_POS[1],RX_LIGHT0_POS[2]);//小さいサイズ感
+	glm::vec3 lightpos(RX_LIGHT0_POS[0] * g_simulation_size_scene, RX_LIGHT0_POS[1] * g_simulation_size_scene, RX_LIGHT0_POS[2] * g_simulation_size_scene);//大きいサイズ感
+	//glm::vec3 lightpos(RX_LIGHT0_POS[0],RX_LIGHT0_POS[1],RX_LIGHT0_POS[2]);//小さいサイズ感
 	glm::vec3 lightcol(RX_LIGHT_DIFF[0], RX_LIGHT_DIFF[1], RX_LIGHT_DIFF[2]);
-	//if (m_draw & RXD_FLOOR) drawFloor(lightpos, lightcol, -60 * dim[1], 150.0);//大きいサイズ感
-	if (m_draw & RXD_FLOOR) drawFloor(lightpos, lightcol, -1.5 * dim[1], 30.0);//小さいサイズ感
+	if (m_draw & RXD_FLOOR) drawFloor(lightpos, lightcol, -1.5 * g_simulation_size_scene * dim[1], 30.0 * g_simulation_size_scene);//大きいサイズ感
+	//if (m_draw & RXD_FLOOR) drawFloor(lightpos, lightcol, -1.5 * dim[1], 30.0);//小さいサイズ感
 
 	// 境界,軸描画
 	glDisable(GL_LIGHTING);
-	//if (m_draw & RXD_BBOX) drawWireCuboid(cen - 50.f * dim, cen + 50.f * dim, glm::vec3(0.5, 1.0, 0.5), 2.0);//大きいサイズ感
-	if (m_draw & RXD_BBOX) drawWireCuboid(cen - 0.5f * dim, cen + 0.5f * dim, glm::vec3(0.5, 1.0, 0.5), 2.0);//小さいサイズ感
+	if (m_draw & RXD_BBOX) drawWireCuboid(cen - 0.5f * g_simulation_size_scene * dim, cen + 0.5f * g_simulation_size_scene * dim, glm::vec3(0.5, 1.0, 0.5), 2.0);//大きいサイズ感
+	//if (m_draw & RXD_BBOX) drawWireCuboid(cen - 0.5f * dim, cen + 0.5f * dim, glm::vec3(0.5, 1.0, 0.5), 2.0);//小さいサイズ感
 	if (m_draw & RXD_AXIS) drawAxis(0.6 * dim[0], 3.0);
 
 	// オブジェクト描画
@@ -470,9 +479,9 @@ void ScenePBD::ImGui(GLFWwindow* window)
 	if (ImGui::Button("HairInteraction")) { initExampleRod(); }
 	ImGui::Separator();
 	//各髪型のファイル定義
-	char* CurlHairFile = "Assets/1024-32/Curly(22).obj";
-	char* WavyHairFile = "Assets/1024-32/Wind_Straight.obj";
-	char* BobHairFile = "Assets/1024/Test_Case_hair_1024.obj";
+	char* CurlHairFile = "Assets/LargeSize(1024-32)/Curl.obj";
+	char* WavyHairFile = "Assets/LargeSize(1024-32)/Windy.obj";
+	char* BobHairFile = "Assets/LargeSize(1024-32)/Bob(24).obj";
 	//髪型を読み込みSagFree処理をする
 	if (ImGui::Button("CurlHair(SagFree)")) { initMoreRod(CurlHairFile, true); }
 	//髪型を読み込むが，SagFreeをしない
@@ -484,12 +493,19 @@ void ScenePBD::ImGui(GLFWwindow* window)
 	if (ImGui::Button("BobHair(SagFree)")) { initMoreRod(BobHairFile, true); }
 	if (ImGui::Button("BobHair")) { initMoreRod(BobHairFile, false); }
 	ImGui::Separator();
-	//強い風を設定
-	if (ImGui::Button("AddStrongWind")) { ChangeWindPower(make_float3(30.f, 0.f, 0.f)); }
-	//弱い風を設定
-	if (ImGui::Button("AddWeakWind")) { ChangeWindPower(make_float3(10.0f, 0.f, 0.f)); }
+	//風の設定
+	//刻み幅
+	float step = 0.25;
+	string step_str = "SetWindPower (step:" + to_string(step) + ")";
+	ImGui::Text(step_str.c_str());
+	if (ImGui::SliderFloat("", &g_sim->m_wind_power.x, 0.0f, 10.0f)) {
+		//値を刻み幅で丸める
+		g_sim->m_wind_power.x = roundf(g_sim->m_wind_power.x / step) * step;
+	}
+	//風を適用
+	if (ImGui::Button("ApplyWind")) { g_sim->m_wind_flag = true; }
 	//風を止める
-	if (ImGui::Button("QuitWind")) { ChangeWindPower(make_float3(0.f, 0.f, 0.0f)); }
+	if (ImGui::Button("QuitWind")) { g_sim->m_wind_flag = false; }
 
 	ImGui::Separator();
 	if (ImGui::Button("quit")) { glfwSetWindowShouldClose(window, GLFW_FALSE); }
@@ -556,8 +572,8 @@ void ScenePBD::resetview(void)//視点、カメラの初期位置変更中
 {
 	double q[4] = { 1, 0, 0, 0 };
 	m_view.SetQuaternion(q);
-	//m_view.SetScaling(-300.0);//大きいサイズ感
-	m_view.SetScaling(-3.0);//小さいサイズ感
+	m_view.SetScaling(-3.0*g_simulation_size_scene);//大きいサイズ感
+	//m_view.SetScaling(-3.0);//小さいサイズ感
 	m_view.SetTranslation(0.0, 0.0);//元(0.0,0.0)
 }
 
@@ -602,6 +618,8 @@ bool ScenePBD::readObjFile(const char* filename,vector<glm::vec3> &PosArray,vect
 		if (buf[0] == 'v') {
 			glm::vec3 pos;
 			sscanf_s(buf, "v %f %f %f", &pos.x, &pos.y, &pos.z);
+			//大きいサイズ感
+			//pos *= 10.0f;
 			PosArray.push_back(pos);
 		}
 		if (buf[0] == 'l') {
@@ -677,11 +695,11 @@ void ScenePBD::initSPH(int max_particles,int num_elastic,float mass, bool use_bp
 
 		//海老沢追加---------------------------------------------------------------
 		env.max_particles = max_particles;//全体の粒子数の変更
-		env.gravity.y = -9.81f;//海老沢追加 重力加速度を無理やり変更
+		env.gravity.y = g_user_gravity.y;//海老沢追加 重力加速度を無理やり変更
 		env.mass = mass;
 		//cout << "mass " << mass << endl;
 		env.dt = DT;
-		//cout << "DT " << DT << endl;
+		cout << "DT " << DT << endl;
 		//-------------------------------------------------------------------------
 
 		g_sim->Initialize(env,num_elastic);
@@ -848,6 +866,10 @@ void ScenePBD::initElasticFromObj(vector<glm::vec3> PosArray, vector<glm::ivec2>
 			m_elasticbodies[i]->AddEdge(iter, iter + 1);
 			if (iter > 0)m_elasticbodies[i]->AddDarbouxVector(iter);
 			iter++;
+
+			//1220確認用
+			//if (iter == 1) cout << i << "th start_vertex: " << glm::to_string(pos0) << endl;
+			//if (j == last - 1) cout << i << "th last_vertex: " << glm::to_string(pos1) << endl;
 		}
 		//両端の点を比較し，y座標が大きい方を固定点とする．(基本は[0]が固定点とする)
 		if (m_elasticbodies[i]->GetVertexPos(0).y < m_elasticbodies[i]->GetVertexPos(iter).y) {//最後の頂点をiterでとれているかは少し不安
@@ -856,6 +878,7 @@ void ScenePBD::initElasticFromObj(vector<glm::vec3> PosArray, vector<glm::ivec2>
 
 		fix_index++;
 		m_elasticbodies[i]->FixVertex(0);
+		
 		
 		//SagFree処理(CPU)
 		//m_elasticbodies[i]->SagFree(ks, kbt);
@@ -970,8 +993,9 @@ void ScenePBD::initMoreRod(char* filename,bool sag_free_flag) {
 	m_draw |= RXD_EDGE;
 
 	m_currentstep = 0;
-	float ks = 20.f;//伸び剛性
-	float kbt = 5.f;//曲げ剛性
+	//大きいサイズ感により，変更
+	float ks = 20.f * g_simulation_size_scene;//伸び剛性
+	float kbt = 5.f * g_simulation_size_scene;//曲げ剛性
 
 	//後からobjファイル内で定義するため，この初期値に意味はない
 	int num_elasticbodies = 10;//弾性体の数
@@ -981,18 +1005,20 @@ void ScenePBD::initMoreRod(char* filename,bool sag_free_flag) {
 	//弾性体の初期化
 	//initElasticbodies(num_elasticbodies, num_particles, ks, kbt, ON_SPHERE);//ON_SPHEREで球上に配置
 
-	//髪型用にObjファイルを書き換え
+	//髪型用にObjファイルの作成
 	//髪型アセットの作成----------------------------------------------------------------------------------------------------------------------------
 	//Objファイルの読み込み
 	// 
 	// 
 	// 
 	// objファイルを作成する場合
+
+
 	//rxOBJ obj;
 	//vector <glm::vec3> vrts,vnms;//頂点情報,法線情報
 	//vector <rxFace> plys;//面情報
 	//rxMTL mats;//材質情報
-	//obj.Read("AssetsNotUsed/Curl.obj", vrts, vnms, plys, mats);
+	//obj.Read("AssetsNotUsed/NearlyStraight.obj", vrts, vnms, plys, mats);
 
 	////頂点列をクランプする
 	//FitVertices(vrts);
@@ -1003,14 +1029,19 @@ void ScenePBD::initMoreRod(char* filename,bool sag_free_flag) {
 	//poly.faces = plys;
 
 	////髪型アセットの作成
-	//int num = 22;//目標は32
-	//MakeHairObj("Test_Case", poly, 0.25, num);
+	//int num = 32;//目標は32
+	////閾値T
+	////小さいサイズ感
+	////float T = 0.25;
+	////大きいサイズ感
+	//float T = 0.25 * g_simulation_size_scene;
+	//MakeHairObj("Test_Case", poly, T , num);
 
 	//エッジの探索
-	//int edge_count=SearchEdge(poly);
-	//cout << "edge_count" << edge_count << endl;
-	//
-	//SearchBoundaryEdge(poly);
+	/*int edge_count=SearchEdge(poly);
+	cout << "edge_count" << edge_count << endl;
+	
+	SearchBoundaryEdge(poly);*/
 
 
 	//-----------------------------------------------------------------------------------------------------------------------------------------------
@@ -1025,8 +1056,6 @@ void ScenePBD::initMoreRod(char* filename,bool sag_free_flag) {
 	
 	//一時的に変更
 	//char* filename = "Assets/1024-32/Curly.obj";
-
-	//char* filename = "AssetsNotUsed/Test_Case_hair_1024.obj";
 
 	//Objファイルを読む
 	readObjFile(filename, PosArray, IndexArray, FixArray);
@@ -1059,7 +1088,7 @@ void ScenePBD::initMoreRod(char* filename,bool sag_free_flag) {
 	XPBDParamsToDevice(num_elasticbodies);
 
 	//SagFree処理(GPU)
-	if(sag_free_flag) g_sim->SagFree();
+	if(sag_free_flag) g_sim->SagFree(g_user_gravity);
 
 	//ファイルにGPUに移したパラメータ出力
 	g_sim->OutputParticles("debug.txt");
@@ -1279,9 +1308,15 @@ void ScenePBD::FitVertices(vector<glm::vec3> &vertices) {
 		//形状によって少し変える必要場ある．
 		//アセット用
 		glm::vec3 scale(1.35, 1.f, 1.35);
-		vertices[i] = glm::vec3((x_new - 0.1) * scale[0], (y_new - 0.5) * scale[1], (z_new - 0.25) * scale[2]) * 2.0f;
+		//CurlHair
+		//vertices[i] = glm::vec3((x_new - 0.1) * scale[0], (y_new - 0.5) * scale[1], (z_new - 0.25) * scale[2]) * 2.0f;//x:-0.1 z:-0.25
+		//WavyHair
+		vertices[i] = glm::vec3((x_new - 0.3) * scale[0], (y_new - 0.5) * scale[1], (z_new - 0.3) * scale[2]) * 2.0f;//x:-0.1 z:-0.25
 		//頂いたObjファイル用
 		//vertices[i] = glm::vec3(x_new - 0.5, y_new - 0.5, z_new - 0.4) * 1.5f;
+
+		//大きいサイズ感
+		vertices[i] *= g_simulation_size_scene;
 	}
 
 }
