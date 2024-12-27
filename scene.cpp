@@ -79,6 +79,9 @@ float g_simulation_size_scene = 2.5;
 //サイズ感を変えたことによる重力の変更
 glm::vec3 g_user_gravity = glm::vec3(0.f, -9.81f, 0.f) / (g_simulation_size_scene * 4.0f);
 
+//画像を毎ステップ保存するかどうかのフラグ
+bool g_spacing_flag = false;
+
 //-----------------------------------------------------------------------------
 // ScenePBDクラスのstatic変数の定義と初期化
 //-----------------------------------------------------------------------------
@@ -231,14 +234,24 @@ void ScenePBD::Init(int argc, char* argv[])
 	//利用するファイルの指定
 	//char* filename = "Assets/1024-32/Curly(22).obj";
 	//テスト用
-	char* filename = "Assets/LargeSize(1024-32)/Bob(24).obj";
+	//char* filename = "AssetsNotUsed/Test_Case_hair_1024.obj";
+
+	//Bob
+	char* bob_filename = "Assets/LargeSize(1024-32)/Bob(24).obj";
+	int bob_type = BOB_STYLE;
+	//Curl
+	char* curl_filename = "Assets/LargeSize(1024-32)/Curl.obj";
+	int curl_type = CURL_STYLE;
+	//Wavy
+	char* wavy_filename = "Assets/LargeSize(1024-32)/Windy.obj";
+	int wavy_type = WAVY_STYLE;
 
 	// PBD初期設定
 	//initStraightRod();
 	//initCenterSpiralRod();
 	//initNaturalSpiralRod();
 	//initExampleRod();
-	initMoreRod(filename, false);//SagFreeがされない
+	initMoreRod(bob_filename, false,bob_type);//SagFreeがされない
 	//initMoreRod("filename",true);//SagFreeがされる
 }
 
@@ -328,6 +341,15 @@ void ScenePBD::Timer(void)
 		m_currentstep++;
 		//ステップ数の出力(ちゃんと動いているかの確認
 		cout << m_currentstep << " steps" << endl;
+
+		//動画用のあるタイムステップで風を与える処理
+		/*if(m_currentstep==499){
+			g_sim->m_wind_flag = true;
+			g_sim->m_wind_power = make_float3(1.0, 0.0, 0.0);
+		}
+		if (m_currentstep == 1000) {
+			switchanimation(-1);
+		}*/
 	}
 }
 
@@ -479,19 +501,23 @@ void ScenePBD::ImGui(GLFWwindow* window)
 	if (ImGui::Button("HairInteraction")) { initExampleRod(); }
 	ImGui::Separator();
 	//各髪型のファイル定義
+	char* BobHairFile = "Assets/LargeSize(1024-32)/Bob(24).obj";
 	char* CurlHairFile = "Assets/LargeSize(1024-32)/Curl.obj";
 	char* WavyHairFile = "Assets/LargeSize(1024-32)/Windy.obj";
-	char* BobHairFile = "Assets/LargeSize(1024-32)/Bob(24).obj";
+	//各髪型のタイプ定義
+	int bob_type = BOB_STYLE;
+	int curl_type = CURL_STYLE;
+	int wavy_type = WAVY_STYLE;
 	//髪型を読み込みSagFree処理をする
-	if (ImGui::Button("CurlHair(SagFree)")) { initMoreRod(CurlHairFile, true); }
-	//髪型を読み込むが，SagFreeをしない
-	if (ImGui::Button("CurlHair")) { initMoreRod(CurlHairFile, false); }
+	if (ImGui::Button("BobHair(SagFree)")) { initMoreRod(BobHairFile, true, bob_type); }
+	//SagFree処理をしない
+	if (ImGui::Button("BobHair")) { initMoreRod(BobHairFile, false, bob_type); }
 	ImGui::Separator();
-	if (ImGui::Button("WavyHair(SagFree)")) { initMoreRod(WavyHairFile, true); }
-	if (ImGui::Button("WavyHair")) { initMoreRod(WavyHairFile, false); }
+	if (ImGui::Button("CurlHair(SagFree)")) { initMoreRod(CurlHairFile, true, curl_type); }
+	if (ImGui::Button("CurlHair")) { initMoreRod(CurlHairFile, false, curl_type); }
 	ImGui::Separator();
-	if (ImGui::Button("BobHair(SagFree)")) { initMoreRod(BobHairFile, true); }
-	if (ImGui::Button("BobHair")) { initMoreRod(BobHairFile, false); }
+	if (ImGui::Button("WavyHair(SagFree)")) { initMoreRod(WavyHairFile, true, wavy_type); }
+	if (ImGui::Button("WavyHair")) { initMoreRod(WavyHairFile, false, wavy_type); }
 	ImGui::Separator();
 	//風の設定
 	//刻み幅
@@ -506,6 +532,16 @@ void ScenePBD::ImGui(GLFWwindow* window)
 	if (ImGui::Button("ApplyWind")) { g_sim->m_wind_flag = true; }
 	//風を止める
 	if (ImGui::Button("QuitWind")) { g_sim->m_wind_flag = false; }
+
+	//画像を毎ステップ保存
+	if (ImGui::Checkbox("SaveAllStep", &g_spacing_flag)) {
+		if (g_spacing_flag) {
+			m_simg_spacing = 1;
+		}
+		else {
+			m_simg_spacing = -1;
+		}
+	}
 
 	ImGui::Separator();
 	if (ImGui::Button("quit")) { glfwSetWindowShouldClose(window, GLFW_FALSE); }
@@ -676,7 +712,7 @@ bool ScenePBD::MakeHairObjFile(const char* In_filename,const char* Out_filename)
 }
 
 //SPHの初期化
-void ScenePBD::initSPH(int max_particles,int num_elastic,float mass, bool use_bp)
+void ScenePBD::initSPH(int max_particles,int num_elastic,float mass,float3 sphere_center,float sphere_rad, bool use_bp)
 {
 	// 描画スケール(PointSprite用)
 	float view_scale = 1.2 * m_winh / tanf(RX_FOV * 0.5f * (float)RX_PI / 180.0f);
@@ -702,7 +738,7 @@ void ScenePBD::initSPH(int max_particles,int num_elastic,float mass, bool use_bp
 		cout << "DT " << DT << endl;
 		//-------------------------------------------------------------------------
 
-		g_sim->Initialize(env,num_elastic);
+		g_sim->Initialize(env, num_elastic, sphere_center, sphere_rad);
 		//g_dt = DT;
 	}
 	m_currentstep = 0;
@@ -745,7 +781,7 @@ void ScenePBD::initElasticbodies(int num_elasticbodies, int num_particles,float 
 	srand((unsigned int)time(NULL));//球上に配置する際のためのシード値の設定
 	//衝突させる球の設定(この球の上半分が毛髪の根元とする)
 	glm::vec3 center(0.0, 0.0, 0.0);
-	float rad = 0.35;
+	float rad = 0.35 * g_simulation_size_scene;
 	//新しい弾性体を設定
 	for (int i = 0; i < num_elasticbodies; i++) {
 		m_elasticbodies.push_back(0);
@@ -797,7 +833,7 @@ void ScenePBD::initElasticbodies(int num_elasticbodies, int num_particles,float 
 			//cout << "Length" << glm::length(glm::vec3(x, y, z));
 			glm::vec3 start_pos(x, y, z);
 			glm::vec3 d = start_pos - center;
-			d = glm::normalize(d);
+			d = glm::normalize(d)*g_simulation_size_scene;
 			m_elasticbodies[i]->GenerateStrand(glm::vec3(x, y, z), start_pos + d, num_particles - 1);
 		}
 		m_elasticbodies[i]->FixVertex(0);
@@ -817,7 +853,7 @@ void ScenePBD::initElasticbodies(int num_elasticbodies, int num_particles,float 
 //def_mass:質量
 //num_elastic:弾性体の数を返す
 //all_particle:合計の粒子数を返す
-void ScenePBD::initElasticFromObj(vector<glm::vec3> PosArray, vector<glm::ivec2> IndexArray, vector<int> FixArray,float ks,float kbt,float def_mass,int& num_elastic,int& all_particle) {
+void ScenePBD::initElasticFromObj(vector<glm::vec3> PosArray, vector<glm::ivec2> IndexArray, vector<int> FixArray,float ks,float kbt,float def_mass,int& num_elastic,int& all_particle,int type) {
 	clearArray();
 	int num_elasticbodies = FixArray.size();
 	num_elastic = num_elasticbodies;
@@ -857,7 +893,7 @@ void ScenePBD::initElasticFromObj(vector<glm::vec3> PosArray, vector<glm::ivec2>
 			int index_pos0 = IndexArray[j].x;
 			int index_pos1 = IndexArray[j].y;
 
-			glm::vec3 pos0 = PosArray[index_pos0];//位置を5倍している
+			glm::vec3 pos0 = PosArray[index_pos0];
 			glm::vec3 pos1 = PosArray[index_pos1];
 
 			if (iter == 0)m_elasticbodies[i]->AddVertex(pos0, mass);
@@ -866,10 +902,6 @@ void ScenePBD::initElasticFromObj(vector<glm::vec3> PosArray, vector<glm::ivec2>
 			m_elasticbodies[i]->AddEdge(iter, iter + 1);
 			if (iter > 0)m_elasticbodies[i]->AddDarbouxVector(iter);
 			iter++;
-
-			//1220確認用
-			//if (iter == 1) cout << i << "th start_vertex: " << glm::to_string(pos0) << endl;
-			//if (j == last - 1) cout << i << "th last_vertex: " << glm::to_string(pos1) << endl;
 		}
 		//両端の点を比較し，y座標が大きい方を固定点とする．(基本は[0]が固定点とする)
 		if (m_elasticbodies[i]->GetVertexPos(0).y < m_elasticbodies[i]->GetVertexPos(iter).y) {//最後の頂点をiterでとれているかは少し不安
@@ -986,16 +1018,13 @@ void ScenePBD::XPBDParamsToDevice(int num_elasticbodies) {
 	//g_sim->m_params.mass = Mass_array[0];
 }
 
-void ScenePBD::initMoreRod(char* filename,bool sag_free_flag) {
+void ScenePBD::initMoreRod(char* filename,bool sag_free_flag ,int type) {
 	switchanimation(false);
 
 	m_draw |= RXD_VERTEX;
 	m_draw |= RXD_EDGE;
 
 	m_currentstep = 0;
-	//大きいサイズ感により，変更
-	float ks = 20.f * g_simulation_size_scene;//伸び剛性
-	float kbt = 5.f * g_simulation_size_scene;//曲げ剛性
 
 	//後からobjファイル内で定義するため，この初期値に意味はない
 	int num_elasticbodies = 10;//弾性体の数
@@ -1052,10 +1081,6 @@ void ScenePBD::initMoreRod(char* filename,bool sag_free_flag) {
 	vector<glm::vec3> PosArray;
 	vector<glm::ivec2> IndexArray;
 	vector<int> FixArray;
-	//char* filename = "Assets/Test_Case/Test_Case_hair.obj";
-	
-	//一時的に変更
-	//char* filename = "Assets/1024-32/Curly.obj";
 
 	//Objファイルを読む
 	readObjFile(filename, PosArray, IndexArray, FixArray);
@@ -1067,13 +1092,34 @@ void ScenePBD::initMoreRod(char* filename,bool sag_free_flag) {
 			PosArray[i].z = -tmp;
 		}
 	}
+	//パラメータ設定
+	float mass, ks, kbt;
+	if (type == BOB_STYLE) {
+		//剛性以外にも変更すべきパラメータがあった場合には，typeを受けるg_sim->hair_typeなどを作って渡し，sph.cppのUpdate関数で参照できるように
+	}
+	else if (type == CURL_STYLE) {
 
-	float mass = 1.0e-1;//5.0e-3
-	initElasticFromObj(PosArray, IndexArray, FixArray, ks, kbt,mass,num_elasticbodies,all_particles);
+	}
+	else if (type == WAVY_STYLE) {
+
+	}
+	else {
+		std::cerr << "No HairStyle defined!!" << endl;
+	}
+	mass = 1.0e-1;//5.0e-3
+	//大きいサイズ感により，変更
+	ks = 20.f * g_simulation_size_scene;//伸び剛性
+	kbt = 5.f * g_simulation_size_scene;//曲げ剛性
+
+	//球のサイズ
+	float3 sphere_center = make_float3(-5.0 * g_simulation_size_scene, 0.0, 0.0);
+	float sphere_rad = 0.35 * g_simulation_size_scene;
+
+	initElasticFromObj(PosArray, IndexArray, FixArray, ks, kbt, mass, num_elasticbodies, all_particles, type);
 	
 	m_picked = -1;
 	//SPH法の初期化
-	initSPH(all_particles,num_elasticbodies,mass);//元はm_allnum(initElasticbodiesで設定)
+	initSPH(all_particles, num_elasticbodies, mass, sphere_center, sphere_rad);//元はm_allnum(initElasticbodiesで設定)
 
 	//フラグをオンにしてみる
 	//g_sim->m_example_flag = true;
@@ -1120,7 +1166,7 @@ void ScenePBD::initStraightRod(void)
 	float mass = 1.0e-1;
 
 	//SPH法の設定
-	initSPH(m_allnum,num_elasticbodies,mass);
+	//initSPH(m_allnum,num_elasticbodies,mass);
 	initArray(m_allnum);
 	
 	XPBDtoSPH();
@@ -1152,7 +1198,7 @@ void ScenePBD::initCenterSpiralRod(void)
 	m_picked = -1;
 
 	float mass = 1.0e-1;
-	initSPH(m_allnum,num_elasticbodies,mass);
+	//initSPH(m_allnum,num_elasticbodies,mass);
 	initArray(m_allnum);
 
 	XPBDtoSPH();
@@ -1187,7 +1233,7 @@ void ScenePBD::initNaturalSpiralRod(void)
 	m_picked = -1;
 	float mass = 1.0e-1;
 
-	initSPH(m_allnum,num_elasticbodies,mass);
+	//initSPH(m_allnum,num_elasticbodies,mass);
 	initArray(m_allnum);
 
 	XPBDtoSPH();
@@ -1208,6 +1254,10 @@ void ScenePBD::initExampleRod(void) {
 	float ks = 20.f;
 	float kbt = 20.f;
 
+	//球のサイズ
+	float3 sphere_center = make_float3(0.0, 0.0, 0.0);
+	float sphere_rad = 0.35 * g_simulation_size_scene;
+
 	//パラメータ設定
 	//Shear&Stretching Constraint  w = 1.0 / (length); wq = 1.0 / (1.0e-5) * length;
 	//球 center=(0.0,0.0,0.0) rad=0.35
@@ -1222,12 +1272,12 @@ void ScenePBD::initExampleRod(void) {
 	m_picked = -1;
 
 	float mass = 1.0e-1;
-	initSPH(m_allnum,num_elasticbodies,mass);
+	initSPH(m_allnum, num_elasticbodies, mass, sphere_center, sphere_rad);
 	initArray(m_allnum);
 
 	//SPHの結果を表示する際には，他と少し変える----
-	g_sim->m_center = make_float3(0.0, 0.0, 0.0);
-	g_sim->m_rad = 0.35;
+	//g_sim->m_center = make_float3(0.0, 0.0, 0.0);
+	//g_sim->m_rad = 0.35;
 	g_sim->m_example_flag = true;
 	//---------------------------------------------
 

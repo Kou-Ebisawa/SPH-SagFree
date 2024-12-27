@@ -112,7 +112,7 @@ SPH::~SPH()
  * @param[in] mass 粒子の質量
  * @param[in] kernel_particle 有効半径h以内の粒子数
  */
-void SPH::Initialize(const SceneParameter &env,int num_elastic)
+void SPH::Initialize(const SceneParameter &env,int num_elastic, float3 sphere_center, float sphere_rad)
 {
 	cout << "[SPH::Initialize]" << endl;
 	CuInit();
@@ -121,14 +121,17 @@ void SPH::Initialize(const SceneParameter &env,int num_elastic)
 	m_params.rest_dens = env.dens;
 	//海老沢追加--------------------------------------------------------------------------
 	m_params.rest_dens = 8.0e4 / (g_simulation_size_sph*2.0);//9.8e3,8.0e3,小さいサイズ感なら8.0e4
+	//example rodの場合
+	//if (m_example_flag) m_params.rest_dens = 5.0e2;
+
 	m_params.mass = 0.1;
 	cout << "max particles " << m_params.max_particles << endl;
 
 	//風の設定(GUIで一つの値を適用したり、解除したりできる)
 	m_wind_power = make_float3(0.f, 0.f, 0.f);
 	//衝突をする球との判定
-	m_center = make_float3(-5.0*g_simulation_size_sph, 0.0, 0.0) ;
-	m_rad = 0.35 * g_simulation_size_sph;
+	m_center = sphere_center;
+	m_rad = sphere_rad;
 	//ExampleRodの場合，重みや処理の一部を変更する必要があるため，フラグで管理する
 	m_example_flag = false;
 	//シミュレーション開始時は風を吹かせない

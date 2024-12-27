@@ -72,7 +72,11 @@ public:
 		CENTER_SPIRAL,
 		NATURAL_SPIRAL,
 		EXAMPLE,
-		ON_SPHERE
+		ON_SPHERE,
+		//髪型に用いる列挙型
+		BOB_STYLE,
+		CURL_STYLE,
+		WAVY_STYLE
 	};
 protected:
 	static int m_winw;						//!< 描画ウィンドウの幅
@@ -128,7 +132,7 @@ public:
 	static void Destroy();
 
 	//海老沢追加------------------------------------------------
-	static void initSPH(int max_particles,int num_elastic,float mass, bool use_bp = true);
+	static void initSPH(int max_particles, int num_elastic, float mass, float3 sphere_center, float sphere_rad, bool use_bp = true);
 	//XBPD->SPHでのデータのやり取りをする配列
 	static void initArray(int max_particles);
 	static void clearArray(void);
@@ -145,7 +149,7 @@ public:
 	//髪型用のobjファイルに書き換え
 	static bool MakeHairObjFile(const char* In_filename,const char* Out_filename);
 
-	static void initElasticFromObj(vector<glm::vec3>PosArray, vector<glm::ivec2>IndexArray, vector<int>FixArray, float ks, float kbt,float mass,int& num_elastic,int &all_particles);
+	static void initElasticFromObj(vector<glm::vec3>PosArray, vector<glm::ivec2>IndexArray, vector<int>FixArray, float ks, float kbt, float mass, int& num_elastic, int& all_particles, int type);
 
 	static void drawHairObject(unsigned int vbo, int n, unsigned int color_vbo,unsigned int normal_vbo, float* data, int offset, double pscale, double prad, double czf = 1000, double czb = -1000);
 	//風の強さを変える
@@ -170,7 +174,7 @@ private:
 	static void initCenterSpiralRod(void);
 	static void initNaturalSpiralRod(void);
 	static void initExampleRod(void);
-	static void initMoreRod(char* filename, bool sag_free_flag);
+	static void initMoreRod(char* filename, bool sag_free_flag,int type);
 
 	// マウスピック
 	static void clearPick(void);

@@ -232,7 +232,7 @@ public:
 
 public:
 	// シミュレーション初期化
-	void Initialize(const SceneParameter& env,int num_elastic);
+	void Initialize(const SceneParameter& env, int num_elastic, float3 sphere_center, float sphere_rad);
 	void Allocate(int max_particles);
 	void Finalize(void);
 
