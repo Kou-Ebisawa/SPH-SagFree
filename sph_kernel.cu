@@ -1066,7 +1066,7 @@ void CxStretchingShearConstraint(float* dpos,float* dcurpos, float* dmas, float*
     float wq = 1.0;//辺の重み
     //重みの適切な設定についてはまだ定まっていない
     //重みを2つの頂点の質量の和として設定
-    wq = (w1 + w2);
+    wq = (w1 + w2) ;
     //長さを利用してみる
     //wq = (w1 + w2) / length / length * 4;
     //wq = w1 * w2 / (w1 + w2);
@@ -1196,7 +1196,7 @@ void CxBendTwistConstraint(float* dmas,float* dquat,float* dcurquat, float* dome
     //重みの適切な設定はまだ定まっていない
     //wq1 = 1.0f / dlen1;
     //wq2 = 1.0f / dlen2;
-    wq1 = wq2 = 2 / mass * 10;
+    wq1 = wq2 = 2 / mass * 10.f;//*10.f
     //wq1 = 2 / mass / dlen1 / dlen1 * 4;
     //wq2 = 2 / mass / dlen2 / dlen2 * 4;
     if (example_flag) {
@@ -2235,9 +2235,10 @@ void CxGlobalTorqueStep_Upstair(float* dpos, float* dquat, float* domega, float*
 //cur_omega:現在の二つの姿勢から求めるダルボーベクトル
 //rest_omega:GlobalTorqueStepで求めた正規化前の基準ダルボーベクトル
 //bendK:曲げ剛性
+//K_min:LocalTorqueStepでの調整パラメータ
 __device__ __host__
-float4 solveInverseRot(float4 cur_omega, float4 rest_omega, float& bendK) {
-    const float SAFETY_FACTOR = min(abs(cur_omega.w), 0.005f);//0.00002f,0.002f
+float4 solveInverseRot(float4 cur_omega, float4 rest_omega, float& bendK,float K_min) {
+    const float SAFETY_FACTOR = min(abs(cur_omega.w), K_min);//0.00002f,0.002f,最終的には0.005f
     //const float SAFETY_FACTOR = min(length(make_float3(cur_omega.x, cur_omega.y, cur_omega.z)), 0.2f);
     
     rest_omega -= dot(rest_omega, cur_omega) * cur_omega;
@@ -2267,9 +2268,10 @@ float4 solveInverseRot(float4 cur_omega, float4 rest_omega, float& bendK) {
 //deln:基準長
 //dkbt:曲げ剛性
 //dfix:固定点(毛髪の開始点)を示す配列(1なら固定点,0ならそれ以外)
+//K_min:LocalTorqueStepでの調整パラメータ
 //n:粒子数(基準ダルボーベクトルごとに並列計算)
 __global__
-void CxLocalTorqueStep(float* dquat, float* domega, float* dlen,float* dkbt, int* dfix, int n) {
+void CxLocalTorqueStep(float* dquat, float* domega, float* dlen,float* dkbt, int* dfix,float K_min,int n) {
     int id = blockDim.x * blockIdx.x + threadIdx.x;
 
     if (id >= n - 2) return; // 粒子数を超えるスレッドIDのチェック
@@ -2284,7 +2286,7 @@ void CxLocalTorqueStep(float* dquat, float* domega, float* dlen,float* dkbt, int
     float length = dlen[id];
     float tmp_kbt = dkbt[id];
 
-    float4 last_omega = solveInverseRot(cur_omega, rest_omega, tmp_kbt);
+    float4 last_omega = solveInverseRot(cur_omega, rest_omega, tmp_kbt, K_min);
 
     //曲げねじれ制約の剛性の更新
     dkbt[id] = tmp_kbt;
@@ -2788,19 +2790,22 @@ void CxFrictionAllParticlesConstraint(float* dpos, float* dcurpos, float* drestd
                             float q = h * h - r * r;//(h^2-||rij||^2)
                             float3 tmp_x_fric = m / ddens[sj] * MU * delxn * params.aw * q * q * q;//aw*q^3
 
-                            //摩擦力を正規化して方向ベクトルに
-                            float3 norm_tmp_x_fric = normalize(tmp_x_fric);
-                            //v_iのうち，摩擦力の方向の成分を取り出す
-                            float3 dir_i_fric = norm_tmp_x_fric * dot(v_i, norm_tmp_x_fric);
+                            x_fric -= tmp_x_fric;
 
-                            //静止摩擦力ならそちらの方向の成分を打ち消す
-                            if (length(dir_i_fric) <= length(tmp_x_fric)) {
-                                x_fric -= dir_i_fric;
-                            }
-                            //動摩擦なら，そのまま適用することとする
-                            else {
-                                x_fric -= tmp_x_fric;
-                            }
+                            //静止摩擦の残り物
+                            ////摩擦力を正規化して方向ベクトルに
+                            //float3 norm_tmp_x_fric = normalize(tmp_x_fric);
+                            ////v_iのうち，摩擦力の方向の成分を取り出す
+                            //float3 dir_i_fric = norm_tmp_x_fric * dot(v_i, norm_tmp_x_fric);
+
+                            ////静止摩擦力ならそちらの方向の成分を打ち消す
+                            //if (length(dir_i_fric) <= length(tmp_x_fric)) {
+                            //    x_fric -= dir_i_fric;
+                            //}
+                            ////動摩擦なら，そのまま適用することとする
+                            //else {
+                            //    x_fric -= tmp_x_fric;
+                            //}
                         }
                     }
                 }

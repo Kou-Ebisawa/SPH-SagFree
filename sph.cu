@@ -568,11 +568,12 @@ void CuGlobalTorqueStep(float* dpos, float* dquat, float* domega, float* dlen, f
 //deln:基準長
 //dkbt:曲げ剛性
 //dfix:固定点(毛髪の開始点)を示す配列(1なら固定点,0ならそれ以外)
+//K_min:LocalTorqueStepの調整パラメータ
 //n:粒子数(基準ダルボーベクトルごとに並列計算)
-void CuLocalTorqueStep(float* dquat,float* domega, float* dlen, float* dkbt, int* dfix, int n) {
+void CuLocalTorqueStep(float* dquat,float* domega, float* dlen, float* dkbt, int* dfix,float K_min, int n) {
 	dim3 block, grid;
 	CuCalGridN(n, block, grid);
-	CxLocalTorqueStep << <grid, block >> > (dquat, domega, dlen, dkbt, dfix, n);
+	CxLocalTorqueStep << <grid, block >> > (dquat, domega, dlen, dkbt, dfix, K_min, n);
 	cudaThreadSynchronize();
 }
 

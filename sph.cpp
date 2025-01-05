@@ -20,7 +20,7 @@
 #include "sph.cuh"	// CUDAによるSPH計算
 
 //サイズ感を表すパラメータ(12/20追加)
-float g_simulation_size_sph = 2.5;
+float g_simulation_size_sph = 2.5f;
 
 //-----------------------------------------------------------------------------
 // 定義
@@ -279,7 +279,7 @@ void SPH::Allocate(int max_particles)
 }
 
 //海老沢追加
-void SPH::SagFree(glm::vec3 user_gravity) {
+void SPH::SagFree(glm::vec3 user_gravity,float K_min) {
 	float* pos = (float*)CuMapGLBufferObject(&m_cgr_pos);
 
 	CuGlobalForceStep(pos, m_d_fss, m_d_mass, m_d_last_index, make_float3(user_gravity.x, user_gravity.y, user_gravity.z), m_d_dens, m_d_rest_density, m_d_vol, m_numElastic);
@@ -291,7 +291,7 @@ void SPH::SagFree(glm::vec3 user_gravity) {
 
 	CuGlobalTorqueStep(pos, m_d_quat, m_d_rest_darboux, m_d_rest_length, m_d_kss, m_d_kbt, m_d_fix, m_d_last_index, m_numElastic);
 
-	CuLocalTorqueStep(m_d_quat, m_d_rest_darboux, m_d_rest_length, m_d_kbt, m_d_fix, m_num_particles);
+	CuLocalTorqueStep(m_d_quat, m_d_rest_darboux, m_d_rest_length, m_d_kbt, m_d_fix, K_min, m_num_particles);
 
 	// GPUメモリ領域をアンマップ
 	CuUnmapGLBufferObject(m_cgr_pos);

@@ -42,6 +42,9 @@
 #include <ctime>
 #include <cstdlib>
 
+#include <windows.h>
+
+
 //-----------------------------------------------------------------------------
 // 定数・変数
 //-----------------------------------------------------------------------------
@@ -74,13 +77,16 @@ rxPolygons g_poly;
 int g_display_hair = -1;
 
 //サイズ感を表すパラメータ(12/20追加)
-float g_simulation_size_scene = 2.5;
+float g_simulation_size_scene = 2.5f;
 
 //サイズ感を変えたことによる重力の変更
-glm::vec3 g_user_gravity = glm::vec3(0.f, -9.81f, 0.f) / (g_simulation_size_scene * 4.0f);
+glm::vec3 g_user_gravity = glm::vec3(0.f, -9.81f, 0.f) / 10.f;
 
 //画像を毎ステップ保存するかどうかのフラグ
 bool g_spacing_flag = false;
+
+//風を適用するかどうかのフラグ
+bool g_Apply_flag = false;
 
 //-----------------------------------------------------------------------------
 // ScenePBDクラスのstatic変数の定義と初期化
@@ -234,11 +240,12 @@ void ScenePBD::Init(int argc, char* argv[])
 	//利用するファイルの指定
 	//char* filename = "Assets/1024-32/Curly(22).obj";
 	//テスト用
-	//char* filename = "AssetsNotUsed/Test_Case_hair_1024.obj";
+	char* filename = "AssetsNotUsed/Test_Case_hair_1024.obj";
 
 	//Bob
 	char* bob_filename = "Assets/LargeSize(1024-32)/Bob(24).obj";
 	int bob_type = BOB_STYLE;
+	//bob_filename = "AssetsNotUsed/Test_Case_hair.obj";//Kajiya-Kayモデルのスクショに利用
 	//Curl
 	char* curl_filename = "Assets/LargeSize(1024-32)/Curl.obj";
 	int curl_type = CURL_STYLE;
@@ -251,8 +258,8 @@ void ScenePBD::Init(int argc, char* argv[])
 	//initCenterSpiralRod();
 	//initNaturalSpiralRod();
 	//initExampleRod();
-	initMoreRod(bob_filename, false,bob_type);//SagFreeがされない
-	//initMoreRod("filename",true);//SagFreeがされる
+	initMoreRod(curl_filename, false, curl_type);//SagFreeがされない
+	//initMoreRod(bob_filename,true);//SagFreeがされる
 }
 
 
@@ -528,10 +535,14 @@ void ScenePBD::ImGui(GLFWwindow* window)
 		//値を刻み幅で丸める
 		g_sim->m_wind_power.x = roundf(g_sim->m_wind_power.x / step) * step;
 	}
-	//風を適用
-	if (ImGui::Button("ApplyWind")) { g_sim->m_wind_flag = true; }
-	//風を止める
-	if (ImGui::Button("QuitWind")) { g_sim->m_wind_flag = false; }
+	if (ImGui::Checkbox("ApplyWind", &g_Apply_flag)) {
+		if (g_Apply_flag) {
+			g_sim->m_wind_flag = true;
+		}
+		else {
+			g_sim->m_wind_flag = false;
+		}
+	}
 
 	//画像を毎ステップ保存
 	if (ImGui::Checkbox("SaveAllStep", &g_spacing_flag)) {
@@ -1047,7 +1058,7 @@ void ScenePBD::initMoreRod(char* filename,bool sag_free_flag ,int type) {
 	//vector <glm::vec3> vrts,vnms;//頂点情報,法線情報
 	//vector <rxFace> plys;//面情報
 	//rxMTL mats;//材質情報
-	//obj.Read("AssetsNotUsed/NearlyStraight.obj", vrts, vnms, plys, mats);
+	//obj.Read("Assets/10000.obj", vrts, vnms, plys, mats);
 
 	////頂点列をクランプする
 	//FitVertices(vrts);
@@ -1065,6 +1076,7 @@ void ScenePBD::initMoreRod(char* filename,bool sag_free_flag ,int type) {
 	////大きいサイズ感
 	//float T = 0.25 * g_simulation_size_scene;
 	//MakeHairObj("Test_Case", poly, T , num);
+
 
 	//エッジの探索
 	/*int edge_count=SearchEdge(poly);
@@ -1094,26 +1106,59 @@ void ScenePBD::initMoreRod(char* filename,bool sag_free_flag ,int type) {
 	}
 	//パラメータ設定
 	float mass, ks, kbt;
-	if (type == BOB_STYLE) {
-		//剛性以外にも変更すべきパラメータがあった場合には，typeを受けるg_sim->hair_typeなどを作って渡し，sph.cppのUpdate関数で参照できるように
-	}
-	else if (type == CURL_STYLE) {
-
-	}
-	else if (type == WAVY_STYLE) {
-
-	}
-	else {
-		std::cerr << "No HairStyle defined!!" << endl;
-	}
+	//質量
 	mass = 1.0e-1;//5.0e-3
 	//大きいサイズ感により，変更
 	ks = 20.f * g_simulation_size_scene;//伸び剛性
 	kbt = 5.f * g_simulation_size_scene;//曲げ剛性
-
 	//球のサイズ
 	float3 sphere_center = make_float3(-5.0 * g_simulation_size_scene, 0.0, 0.0);
 	float sphere_rad = 0.35 * g_simulation_size_scene;
+	//LocalTorqueStepの調整パラメータ
+	float K_min = 0.005f;
+	//ボブヘア
+	if (type == BOB_STYLE) {
+		//球の位置やサイズ，質量，剛性以外にも変更すべきパラメータがあった場合には，typeを受けるg_sim->hair_typeなどを作って渡し，sph.cppのUpdate関数で参照できるように
+		//球の中心と半径
+		sphere_center = make_float3(0.0,0.0,0.0);
+		sphere_rad = 0.35 * g_simulation_size_scene;
+		//剛性
+		ks = 20.f;
+		kbt = 5.f;
+		//質量
+		mass = 1.0e-1;
+		//LocalTorqueStepの調整パラメータ
+		K_min = 0.005f;
+	}
+	//カールヘア
+	else if (type == CURL_STYLE) {
+		//球の中心と半径
+		sphere_center = make_float3(0.0, 0.35 * g_simulation_size_scene, -0.25 * g_simulation_size_scene);
+		sphere_rad = 0.25 * g_simulation_size_scene;
+		//剛性
+		ks = 120.f;
+		kbt = 30.f;
+		//質量
+		mass = 1.0e-1;
+		//LocalTorqueStepの調整パラメータ
+		K_min = 0.005f;
+	}
+	//ウェーブヘア
+	else if (type == WAVY_STYLE) {
+		//球の中心と半径
+		sphere_center = make_float3(0.0, 0.4 * g_simulation_size_scene, 0.2*g_simulation_size_scene);
+		sphere_rad = 0.35 * g_simulation_size_scene;
+		//剛性
+		ks = 120.f;
+		kbt = 50.f;
+		//質量
+		mass = 1.0e-1;
+		//LocalTorqueStepの調整パラメータ
+		K_min = 0.005f;
+	}
+	else {
+		std::cerr << "No HairStyle defined!!" << endl;
+	}
 
 	initElasticFromObj(PosArray, IndexArray, FixArray, ks, kbt, mass, num_elasticbodies, all_particles, type);
 	
@@ -1133,11 +1178,23 @@ void ScenePBD::initMoreRod(char* filename,bool sag_free_flag ,int type) {
 	//XPBDのパラメータ
 	XPBDParamsToDevice(num_elasticbodies);
 
+	//時間計測---------------------------------------------------------
+	LARGE_INTEGER t1, t2;
+	LARGE_INTEGER f;
+	QueryPerformanceFrequency((LARGE_INTEGER*)&f);	// 高分解能パフォーマンスカウンタの周波数を取得
+	QueryPerformanceCounter((LARGE_INTEGER*)&t1);
+
 	//SagFree処理(GPU)
-	if(sag_free_flag) g_sim->SagFree(g_user_gravity);
+	if (sag_free_flag) g_sim->SagFree(g_user_gravity, K_min);
+
+	cudaDeviceSynchronize();
+
+	QueryPerformanceCounter((LARGE_INTEGER*)&t2);
+	printf("\n %f [msec] \n \n", (double)(t2.QuadPart - t1.QuadPart) / (double)(f.QuadPart));
+	//-----------------------------------------------------------------
 
 	//ファイルにGPUに移したパラメータ出力
-	g_sim->OutputParticles("debug.txt");
+	//g_sim->OutputParticles("debug.txt");
 }
 
 
@@ -1361,9 +1418,9 @@ void ScenePBD::FitVertices(vector<glm::vec3> &vertices) {
 		//CurlHair
 		//vertices[i] = glm::vec3((x_new - 0.1) * scale[0], (y_new - 0.5) * scale[1], (z_new - 0.25) * scale[2]) * 2.0f;//x:-0.1 z:-0.25
 		//WavyHair
-		vertices[i] = glm::vec3((x_new - 0.3) * scale[0], (y_new - 0.5) * scale[1], (z_new - 0.3) * scale[2]) * 2.0f;//x:-0.1 z:-0.25
+		//vertices[i] = glm::vec3((x_new - 0.3) * scale[0], (y_new - 0.5) * scale[1], (z_new - 0.3) * scale[2]) * 2.0f;//x:-0.1 z:-0.25
 		//頂いたObjファイル用
-		//vertices[i] = glm::vec3(x_new - 0.5, y_new - 0.5, z_new - 0.4) * 1.5f;
+		vertices[i] = glm::vec3(x_new - 0.5, y_new - 0.5, z_new - 0.4) * 1.5f;
 
 		//大きいサイズ感
 		vertices[i] *= g_simulation_size_scene;

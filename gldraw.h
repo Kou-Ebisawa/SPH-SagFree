@@ -988,7 +988,7 @@ static inline void DrawCollisionSphereVBO(float x,float y,float z,float rad)
 	glColor3f(1.0, 1.0, 1.0);
 	glTranslatef(x,y,z);
 	static MeshVBO vbo;
-	if (vbo.vrts == 0) {
+	//if (vbo.vrts == 0) {
 		// ポリゴンデータ作成
 		int nvrts, ntris;
 		vector<glm::vec3> vrts, nrms;
@@ -997,7 +997,7 @@ static inline void DrawCollisionSphereVBO(float x,float y,float z,float rad)
 
 		// VBOの作成
 		CreateVBO(vbo, (GLfloat*)&vrts[0], nvrts, 3, &tris[0], ntris, 3, (GLfloat*)&nrms[0], nvrts);
-	}
+	//}
 	glShadeModel(GL_SMOOTH);
 
 	glBindBuffer(GL_ARRAY_BUFFER, vbo.vrts);

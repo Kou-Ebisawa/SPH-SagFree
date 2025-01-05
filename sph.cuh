@@ -70,7 +70,7 @@ void CuLocalForceStep(float* dpos, float* dlen, float* dquat,float* dcurquat, fl
 //グローバルトルクステップ(Videoを参考にした方)
 void CuGlobalTorqueStep(float* dpos, float* dquat, float* domega, float* dlen, float* dkss, float* dkbt, int* dfix, int* dlast_index, int num_elastic);
 //ローカルトルクステップ
-void CuLocalTorqueStep(float* dquat, float* domega, float* dlen, float* dkbt, int* dfix, int n);
+void CuLocalTorqueStep(float* dquat, float* domega, float* dlen, float* dkbt, int* dfix, float K_min, int n);
 //-----------------
 
 //密度制約

@@ -216,7 +216,7 @@ public:
 	void SetXPBD_Params(int max_particles, const void* mass, const void* length, const void* kss, const void* kbt, const void* quat, const void* darboux,const void* fix,const void* last_index);
 	//void SetXPBD_Params(int max_particles, const void* mass, const void* quat);
 	//海老沢追加 SagFree処理を行う
-	void SagFree(glm::vec3 gravity);
+	void SagFree(glm::vec3 gravity, float K_min);
 
 	// 陰関数値計算
 	float GetImplicit(float x, float y, float z);

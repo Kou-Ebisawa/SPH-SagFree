@@ -18,7 +18,7 @@ const vec4 bspec=vec4(0.42f,0.35f,0.30f,1.00f);
 //const vec4 bdiff=vec4(0.32f,0.25f,0.20f,1.00f);
 //const vec4 bspec=vec4(0.40f,0.31f,0.25f,1.00f);
 
-const vec4 lpos=vec4(2.0f, 4.0f, 2.0f, 0.0f);//(2.0f, 4.0f, 2.0f, 0.0f)
+const vec4 lpos=vec4(0.0f, 0.0f, 2.0f, 0.0f);//(2.0f, 4.0f, 2.0f, 0.0f)
 const vec4 lambi=vec4(0.3f, 0.3f, 0.3f, 1.0f);
 const vec4 ldiff=vec4(1.0f, 1.0f, 1.0f, 1.0f);
 const vec4 lspec=vec4(1.0f, 1.0f, 1.0f, 1.0f);
@@ -35,14 +35,11 @@ void main() {
 	vec3 L = normalize(lpos.xyz-vPos.xyz);	// 光源ベクトル
 
 	// Kajiya-kayモデル
-	vec3 nl = cross(vNrm, L);		// T×L
-	float nnl = sqrt(dot(nl, nl));	// |T×L| = sinθ
+	float dnl = dot(vNrm, L);//cosθ
+	float dne = dot(vNrm, E);//cosΦ
 
-	vec3 ne = cross(vNrm, E);		// T×E
-	float nne = sqrt(dot(ne, ne));	// |T×E| = sinφ
-
-	float dnl = dot(vNrm, L);
-	float dne = dot(vNrm, E);
+	float nnl=sqrt(1-dnl*dnl);//sinθ
+	float nne=sqrt(1-dne*dne);//sinΦ
 
 	float spec = dne*dnl+nne*nnl;
 	//spec *= spec;	// 2乗
@@ -50,18 +47,15 @@ void main() {
 	//spec *= spec;	// 8乗
 	spec = pow(max(spec, 0.0), 80.0);
 	
-	// Kajiya-kay拡散項
-	vec3 Ad = bdiff.xyz*nnl;		// Kd sinθ = Kd |n×l|
-	vec3 As = bspec.xyz*spec;	// Ks (cosγ)^n = Ks(cosφcosθ-sinφsinθ)^n
+	// Kajiya-kay拡散反射成分
+	vec3 Adiff = bdiff.xyz*nnl;		// Kd sinθ = Kd |n×l|
+	// Kajiya-Kay鏡面反射成分
+	vec3 Aspec = bspec.xyz*spec;	// Ks (cosγ)^n = Ks(cosφcosθ-sinφsinθ)^n
+	//環境光成分
+	vec3 Aambi=bambi.xyz*lambi.xyz;
 
-	// ランバート拡散
-	float diff = max(0.0, dot(L, vNrm));
-	vec3 Ld = ldiff.xyz*diff;
+	gl_FrontColor.rgb = Adiff+Aspec+Aambi;//ランバート拡散項を追加するといくらか不自然に感じたため、除いている
 
-	gl_FrontColor.rgb = Ad+As;//ランバート拡散項を追加するといくらか不自然に感じたため、除いている
-	//gl_FrontColor.rgb= vNrm;
-
-	//gl_FrontColor.rgb = 0.5 * gl_Normal.xyz + 0.5;
 	gl_FrontColor.a = 1.0;
 }
 
