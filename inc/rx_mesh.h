@@ -2461,7 +2461,7 @@ static void MakeHairObj(string filename,rxPolygonsE& obj,float T,int num) {
 	//ループは毛髪の数だけ回すので，ループ回数は上と同じ
 	for (int i = 0; i < hairs_length.size(); i++) {
 		//一つのエッジ当たりの距離(実際にはある程度余裕を持たせるべき)
-		float per_length = hairs_length[i] / (num - 1);
+		float per_length = hairs_length[i] / (num-1);//num-1を従来設定
 		//非常にあいまいな手法を取るので，余裕を持たせる(点の数がnumにならない可能性大)
 		//per_length *= 0.9;
 
@@ -2476,9 +2476,10 @@ static void MakeHairObj(string filename,rxPolygonsE& obj,float T,int num) {
 			}
 			//毛髪の最後の点の場合
 			else if (j == hair.vertices.size() - 1) {
-				rxEdge e;
-				New_Hair.edgeAdd(e);
-				New_Hair.vertAdd(hair.vertices[j]);
+					rxEdge e;
+					New_Hair.edgeAdd(e);
+					New_Hair.vertAdd(hair.vertices[j]);
+
 			}
 			else {
 				//ひとつ前の点は，New_hairの最後の配列に追加されている．
@@ -2569,7 +2570,8 @@ static void MakeHairObj(string filename,rxPolygonsE& obj,float T,int num) {
 	//ランダムに1024本を選択して，そのObjファイルを作る
 	vector<Edge_Vert> limit_hairs;
 	srand((unsigned int)time(NULL));
-	for (int i = 0; i < 1024; i++) {
+	int num_hair = 1024;//1024
+	for (int i = 0; i < num_hair; i++) {
 		int num = g_hair.size();
 		limit_hairs.push_back(g_hair[rand() % num]);
 	}

@@ -88,6 +88,9 @@ bool g_spacing_flag = false;
 //風を適用するかどうかのフラグ
 bool g_Apply_flag = false;
 
+//実験時の風の強さの設定
+glm::vec3 g_experiment_power = glm::vec3(0.f);
+
 //-----------------------------------------------------------------------------
 // ScenePBDクラスのstatic変数の定義と初期化
 //-----------------------------------------------------------------------------
@@ -252,14 +255,17 @@ void ScenePBD::Init(int argc, char* argv[])
 	//Wavy
 	char* wavy_filename = "Assets/LargeSize(1024-32)/Windy.obj";
 	int wavy_type = WAVY_STYLE;
+	//実験用
+	char* experiment_filename = "AssetsTimeExperiment/Curl1024.obj";
+
 
 	// PBD初期設定
 	//initStraightRod();
 	//initCenterSpiralRod();
 	//initNaturalSpiralRod();
 	//initExampleRod();
-	initMoreRod(curl_filename, false, curl_type);//SagFreeがされない
-	//initMoreRod(bob_filename,true);//SagFreeがされる
+	initMoreRod(bob_filename, true, bob_type);//SagFreeがされない
+	//initMoreRod(wavy_filename, true, wavy_type);//SagFreeがされる
 }
 
 
@@ -340,23 +346,42 @@ void ScenePBD::Timer(void)
 	if (m_animation_on) {
 		// 描画を画像ファイルとして保存
 		if (m_simg_spacing > 0 && m_currentstep % m_simg_spacing == 0) savedisplay(-1);
-		//SPH法側の更新
-		//cout << "before TimeStep" << DT << endl;
-		g_sim->Update(DT);
 
-		if (m_currentstep > MAX_STEPS) m_currentstep = 0;
-		m_currentstep++;
+
+		//時間計測---------------------------------------------------------
+		//LARGE_INTEGER t1, t2;
+		//LARGE_INTEGER f;
+		//QueryPerformanceFrequency((LARGE_INTEGER*)&f);	// 高分解能パフォーマンスカウンタの周波数を取得
+
+		//cudaDeviceSynchronize();
+		//QueryPerformanceCounter((LARGE_INTEGER*)&t1);
+
+		g_sim->Update(DT, m_currentstep);
+
+		//cudaDeviceSynchronize();
+		//QueryPerformanceCounter((LARGE_INTEGER*)&t2);
+
+		//if (m_currentstep < 100)printf("%f \n", (double)(t2.QuadPart - t1.QuadPart)*1000 / (double)(f.QuadPart));//msecに合わせる
+		//-----------------------------------------------------------------
+
 		//ステップ数の出力(ちゃんと動いているかの確認
 		cout << m_currentstep << " steps" << endl;
 
 		//動画用のあるタイムステップで風を与える処理
-		/*if(m_currentstep==499){
+		if(m_currentstep==399){
 			g_sim->m_wind_flag = true;
-			g_sim->m_wind_power = make_float3(1.0, 0.0, 0.0);
+			g_sim->m_wind_power = make_float3(g_experiment_power.x, g_experiment_power.y, g_experiment_power.z);
 		}
-		if (m_currentstep == 1000) {
+		else if (m_currentstep == 799) {
+			g_sim->m_wind_flag = false;
+			g_sim->m_wind_power = make_float3(0.f,0.f,0.f);
+		}
+		else if (m_currentstep == 1000) {
 			switchanimation(-1);
-		}*/
+		}
+
+		if (m_currentstep > MAX_STEPS) m_currentstep = 0;
+		m_currentstep++;
 	}
 }
 
@@ -528,10 +553,10 @@ void ScenePBD::ImGui(GLFWwindow* window)
 	ImGui::Separator();
 	//風の設定
 	//刻み幅
-	float step = 0.25;
+	float step = 0.125;
 	string step_str = "SetWindPower (step:" + to_string(step) + ")";
 	ImGui::Text(step_str.c_str());
-	if (ImGui::SliderFloat("", &g_sim->m_wind_power.x, 0.0f, 10.0f)) {
+	if (ImGui::SliderFloat("", &g_sim->m_wind_power.x, 0.0f, 5.0f)) {
 		//値を刻み幅で丸める
 		g_sim->m_wind_power.x = roundf(g_sim->m_wind_power.x / step) * step;
 	}
@@ -617,7 +642,10 @@ void ScenePBD::savedisplay(const int& stp)
  */
 void ScenePBD::resetview(void)//視点、カメラの初期位置変更中
 {
+	//通常の設定
 	double q[4] = { 1, 0, 0, 0 };
+	//横からの視点に回転させる場合
+	//double q[4] = { 1/sqrt(2), 0, 1 / sqrt(2), 0};
 	m_view.SetQuaternion(q);
 	m_view.SetScaling(-3.0*g_simulation_size_scene);//大きいサイズ感
 	//m_view.SetScaling(-3.0);//小さいサイズ感
@@ -1054,11 +1082,12 @@ void ScenePBD::initMoreRod(char* filename,bool sag_free_flag ,int type) {
 	// objファイルを作成する場合
 
 
+
 	//rxOBJ obj;
 	//vector <glm::vec3> vrts,vnms;//頂点情報,法線情報
 	//vector <rxFace> plys;//面情報
 	//rxMTL mats;//材質情報
-	//obj.Read("Assets/10000.obj", vrts, vnms, plys, mats);
+	//obj.Read("AssetsNotUsed/Curl.obj", vrts, vnms, plys, mats);
 
 	////頂点列をクランプする
 	//FitVertices(vrts);
@@ -1076,6 +1105,7 @@ void ScenePBD::initMoreRod(char* filename,bool sag_free_flag ,int type) {
 	////大きいサイズ感
 	//float T = 0.25 * g_simulation_size_scene;
 	//MakeHairObj("Test_Case", poly, T , num);
+
 
 
 	//エッジの探索
@@ -1120,21 +1150,26 @@ void ScenePBD::initMoreRod(char* filename,bool sag_free_flag ,int type) {
 	if (type == BOB_STYLE) {
 		//球の位置やサイズ，質量，剛性以外にも変更すべきパラメータがあった場合には，typeを受けるg_sim->hair_typeなどを作って渡し，sph.cppのUpdate関数で参照できるように
 		//球の中心と半径
-		sphere_center = make_float3(0.0,0.0,0.0);
-		sphere_rad = 0.35 * g_simulation_size_scene;
+		sphere_center = make_float3(0.0, 0.175 * g_simulation_size_scene, 0.0);
+		sphere_rad = 0.4 * g_simulation_size_scene;
 		//剛性
-		ks = 20.f;
-		kbt = 5.f;
+		ks = 20.f;//20.f
+		kbt = 7.5f;//5.f
 		//質量
 		mass = 1.0e-1;
 		//LocalTorqueStepの調整パラメータ
-		K_min = 0.005f;
+		K_min = 0.01f;//0.075f
+
+		//風の強さ 0.75(等しい実験)
+		g_experiment_power = glm::vec3(1.0f, 0.f, 0.f);//0.75
+		//SagFree下で無理やり通常時と同じくらい動かしたい場合
+		//g_experiment_power = glm::vec3(2.75f, 0.f, 0.f);
 	}
 	//カールヘア
 	else if (type == CURL_STYLE) {
 		//球の中心と半径
-		sphere_center = make_float3(0.0, 0.35 * g_simulation_size_scene, -0.25 * g_simulation_size_scene);
-		sphere_rad = 0.25 * g_simulation_size_scene;
+		sphere_center = make_float3(0.0, 0.55 * g_simulation_size_scene, -0.2 * g_simulation_size_scene);
+		sphere_rad = 0.33 * g_simulation_size_scene;
 		//剛性
 		ks = 120.f;
 		kbt = 30.f;
@@ -1142,19 +1177,25 @@ void ScenePBD::initMoreRod(char* filename,bool sag_free_flag ,int type) {
 		mass = 1.0e-1;
 		//LocalTorqueStepの調整パラメータ
 		K_min = 0.005f;
+
+		//風の強さ 1.25
+		g_experiment_power = glm::vec3(1.85f, 0.f, 0.f);//1.5
 	}
 	//ウェーブヘア
 	else if (type == WAVY_STYLE) {
 		//球の中心と半径
-		sphere_center = make_float3(0.0, 0.4 * g_simulation_size_scene, 0.2*g_simulation_size_scene);
-		sphere_rad = 0.35 * g_simulation_size_scene;
+		sphere_center = make_float3(-0.05 * g_simulation_size_scene, 0.55 * g_simulation_size_scene, 0.35 * g_simulation_size_scene);
+		sphere_rad = 0.325 * g_simulation_size_scene;
 		//剛性
-		ks = 120.f;
+		ks = 150.f;
 		kbt = 50.f;
 		//質量
 		mass = 1.0e-1;
 		//LocalTorqueStepの調整パラメータ
-		K_min = 0.005f;
+		K_min = 0.00175f;//0.0025
+
+		//風の強さ 1.25
+		g_experiment_power = glm::vec3(1.75f, 0.f, 0.f);
 	}
 	else {
 		std::cerr << "No HairStyle defined!!" << endl;
@@ -1182,15 +1223,18 @@ void ScenePBD::initMoreRod(char* filename,bool sag_free_flag ,int type) {
 	LARGE_INTEGER t1, t2;
 	LARGE_INTEGER f;
 	QueryPerformanceFrequency((LARGE_INTEGER*)&f);	// 高分解能パフォーマンスカウンタの周波数を取得
+
+	cudaDeviceSynchronize();
 	QueryPerformanceCounter((LARGE_INTEGER*)&t1);
 
 	//SagFree処理(GPU)
 	if (sag_free_flag) g_sim->SagFree(g_user_gravity, K_min);
 
 	cudaDeviceSynchronize();
-
 	QueryPerformanceCounter((LARGE_INTEGER*)&t2);
-	printf("\n %f [msec] \n \n", (double)(t2.QuadPart - t1.QuadPart) / (double)(f.QuadPart));
+
+	printf("\n %f [msec] \n \n", (double)(t2.QuadPart - t1.QuadPart) * 1000 / (double)(f.QuadPart));//msecに合わせる
+	printf("QueryPerformanceFrequency %f \n", (double)(f.QuadPart));
 	//-----------------------------------------------------------------
 
 	//ファイルにGPUに移したパラメータ出力
@@ -1229,7 +1273,8 @@ void ScenePBD::initStraightRod(void)
 	XPBDtoSPH();
 	XPBDParamsToDevice(num_elasticbodies);
 
-	g_sim->OutputParticles("debug.txt");
+	//デバイスメモリのパラメータを出力
+	//g_sim->OutputParticles("debug.txt");
 }
 
 void ScenePBD::initCenterSpiralRod(void)
@@ -1416,11 +1461,11 @@ void ScenePBD::FitVertices(vector<glm::vec3> &vertices) {
 		//アセット用
 		glm::vec3 scale(1.35, 1.f, 1.35);
 		//CurlHair
-		//vertices[i] = glm::vec3((x_new - 0.1) * scale[0], (y_new - 0.5) * scale[1], (z_new - 0.25) * scale[2]) * 2.0f;//x:-0.1 z:-0.25
+		vertices[i] = glm::vec3((x_new - 0.1) * scale[0], (y_new - 0.5) * scale[1], (z_new - 0.25) * scale[2]) * 2.0f;//x:-0.1 z:-0.25
 		//WavyHair
 		//vertices[i] = glm::vec3((x_new - 0.3) * scale[0], (y_new - 0.5) * scale[1], (z_new - 0.3) * scale[2]) * 2.0f;//x:-0.1 z:-0.25
 		//頂いたObjファイル用
-		vertices[i] = glm::vec3(x_new - 0.5, y_new - 0.5, z_new - 0.4) * 1.5f;
+		//vertices[i] = glm::vec3(x_new - 0.5, y_new - 0.5, z_new - 0.4) * 1.5f;
 
 		//大きいサイズ感
 		vertices[i] *= g_simulation_size_scene;

@@ -522,6 +522,11 @@ bool SPH::Update(float dt, int step)
 	// 接線の更新
 	CuTangUpdate(pos, tang, m_d_fix, m_num_particles);
 	//OutputParticles("debug_update.txt");
+	
+	//固定点を動かす場合
+	//float3 move = make_float3(0.0, 0.025, 0.0);
+	//if (step % 20 >= 10) move = make_float3(0.0, -0.025, 0.0);
+	//CuMoveFixPoint(pos, m_d_fix, move, m_num_particles);
 	//--------------------------------------------------------------------------------------------------------------------------------
 
 	// GPUメモリ領域をアンマップ

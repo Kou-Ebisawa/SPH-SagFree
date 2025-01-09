@@ -2870,3 +2870,20 @@ void CxCalcTorque(float* dpos,float* dmas,float* dquat, float* dfss,float* dleng
     float4 torque = StretchingShearTorque(quat, pos0, pos1, len, dkss[id]);
     //printf("id %d StretchingShearTorque x:%f,y:%f,z:%f,w:%f\n",id, torque.x, torque.y, torque.z, torque.w);
 }
+
+//dpos:位置
+//dfix:固定点
+//move:1ステップ当たりで動く量
+//n:粒子数
+__global__
+void CxMoveFixPoint(float* dpos,int* dfix,float3 move,int n){
+    int id = blockDim.x * blockIdx.x + threadIdx.x;
+
+    if (id >= n) return;
+    //固定点以外の計算点には適用しない．
+    if (dfix[id] == 0 && dfix[id - 1] == 0) return;
+
+    dpos[DIM * id] += move.x;
+    dpos[DIM * id + 1] += move.y;
+    dpos[DIM * id + 2] += move.z;
+}

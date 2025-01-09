@@ -641,6 +641,14 @@ void CuCalcTorque(float* dpos,float* dmas, float* dquat, float* dfss, float* dle
 	cudaThreadSynchronize();
 }
 
+//ŒÅ’è“_‚ðˆê’è—Ê“®‚©‚·
+void CuMoveFixPoint(float* dpos, int* dfix, float3 move, int n) {
+	dim3 block, grid;
+	CuCalGridN(n, block, grid);
+	CxMoveFixPoint << <grid, block >> > (dpos, dfix, move, n);
+	cudaThreadSynchronize();
+}
+
 //--------------------------------------------------------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------

@@ -85,6 +85,8 @@ void CuFrictionConstraint_withQuat(float* dpos, float* dcurpos, float* drestdens
 void CuQuatSet(float* dpos, float* dquat, int* dfix, int n);
 //エッジごとのトルクを求める
 void CuCalcTorque(float* dpos,float* dmas, float* dquat, float* dfss, float* dlength,float*dkss, int* dfix, float3 gravity, int n);
+//固定点を一定量動かす
+void CuMoveFixPoint(float* dpos, int* dfix, float3 move, int n);
 //------------------------------------------------------------------------------------------
 
 // 粒子体積計算
