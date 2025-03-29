@@ -511,9 +511,6 @@ bool SPH::Update(float dt, int step)
 	//-----------------------------------------------------------
 
 	//衝突制約
-	//球を動かす
-	float3 SphereVel = make_float3(3.0 * g_simulation_size_sph, 0.0, 0.0);
-	//MoveSphere(SphereVel, dt);
 
 	CuCollisionConstraint(pos, m_d_vel, m_d_fix, m_center, m_rad, dt, m_num_particles);
 
@@ -524,9 +521,17 @@ bool SPH::Update(float dt, int step)
 	//OutputParticles("debug_update.txt");
 	
 	//固定点を動かす場合
-	//float3 move = make_float3(0.0, 0.025, 0.0);
-	//if (step % 20 >= 10) move = make_float3(0.0, -0.025, 0.0);
-	//CuMoveFixPoint(pos, m_d_fix, move, m_num_particles);
+	//1ステップで動く量
+	float3 move = make_float3(0.0075, 0.0, 0.0);//y=0.005,x=0.0075で実験したと思われる
+	//動かす量の1周期分
+	int move_step = 80;
+	//if (step >= 400 && step < 800) {
+	//	if (step % move_step >= move_step/2) move = make_float3(-move.x, -move.y, -move.z);
+	//	CuMoveFixPoint(pos, m_d_fix, move, m_num_particles);
+	//	//球を動かす
+	//	MoveSphere(move);
+	//}
+
 	//--------------------------------------------------------------------------------------------------------------------------------
 
 	// GPUメモリ領域をアンマップ
@@ -1369,9 +1374,9 @@ void SPH::ChangeNumParticles(int n) {
 
 //海老沢追加
 //球を動かす
-void SPH::MoveSphere(float3 vel,float dt) {
-	m_center.x += dt * vel.x;
-	m_center.y += dt * vel.y;
-	m_center.z += dt * vel.z;
+void SPH::MoveSphere(float3 move) {
+	m_center.x += move.x;
+	m_center.y += move.y;
+	m_center.z += move.z;
 }
 

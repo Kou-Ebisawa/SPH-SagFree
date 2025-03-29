@@ -258,7 +258,7 @@ public:
 	}
 	//海老沢追加
 	//球を動かす
-	void MoveSphere(float3 vel, float dt);
+	void MoveSphere(float3 move);
 
 
 	int OutputParticles(string fn);

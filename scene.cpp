@@ -376,7 +376,9 @@ void ScenePBD::Timer(void)
 			g_sim->m_wind_flag = false;
 			g_sim->m_wind_power = make_float3(0.f,0.f,0.f);
 		}
-		else if (m_currentstep == 1000) {
+
+		//実験用の終了
+		if (m_currentstep == 1000) {
 			switchanimation(-1);
 		}
 
@@ -530,8 +532,8 @@ void ScenePBD::ImGui(GLFWwindow* window)
 	ImGui::CheckboxFlags("floor", &m_draw, RXD_FLOOR);
 	ImGui::Separator();
 	//実験的に毛髪を設定する際に利用
-	if (ImGui::Button("HairInteraction")) { initExampleRod(); }
-	ImGui::Separator();
+	//if (ImGui::Button("HairInteraction")) { initExampleRod(); }
+	//ImGui::Separator();
 	//各髪型のファイル定義
 	char* BobHairFile = "Assets/LargeSize(1024-32)/Bob(24).obj";
 	char* CurlHairFile = "Assets/LargeSize(1024-32)/Curl.obj";
@@ -646,6 +648,7 @@ void ScenePBD::resetview(void)//視点、カメラの初期位置変更中
 	double q[4] = { 1, 0, 0, 0 };
 	//横からの視点に回転させる場合
 	//double q[4] = { 1/sqrt(2), 0, 1 / sqrt(2), 0};
+
 	m_view.SetQuaternion(q);
 	m_view.SetScaling(-3.0*g_simulation_size_scene);//大きいサイズ感
 	//m_view.SetScaling(-3.0);//小さいサイズ感
@@ -1154,16 +1157,19 @@ void ScenePBD::initMoreRod(char* filename,bool sag_free_flag ,int type) {
 		sphere_rad = 0.4 * g_simulation_size_scene;
 		//剛性
 		ks = 20.f;//20.f
-		kbt = 7.5f;//5.f
+		kbt = 75.f;//7.5f 一時的に変更
 		//質量
 		mass = 1.0e-1;
 		//LocalTorqueStepの調整パラメータ
-		K_min = 0.01f;//0.075f
+		//卒論用
+		//K_min = 0.01f;//0.0075f
+		//中間発表用の動画
+		K_min = 0.0075f;
 
 		//風の強さ 0.75(等しい実験)
-		g_experiment_power = glm::vec3(1.0f, 0.f, 0.f);//0.75
-		//SagFree下で無理やり通常時と同じくらい動かしたい場合
-		//g_experiment_power = glm::vec3(2.75f, 0.f, 0.f);
+		g_experiment_power = glm::vec3(1.0f, 0.f, 0.f);//0.75(卒論) 最終発表(1.0f)
+		//SagFree下で無理やり通常時と同じくらい動かしたい場合(卒論)
+		//g_experiment_power = glm::vec3(3.25f, 0.f, 0.f);//2.75f(卒論) 最終発表(3.25f)
 	}
 	//カールヘア
 	else if (type == CURL_STYLE) {
@@ -1175,11 +1181,13 @@ void ScenePBD::initMoreRod(char* filename,bool sag_free_flag ,int type) {
 		kbt = 30.f;
 		//質量
 		mass = 1.0e-1;
-		//LocalTorqueStepの調整パラメータ
-		K_min = 0.005f;
+		//LocalTorqueStepの調整パラメータ(卒論)
+		//K_min = 0.005f;
+		//中間発表用の動画
+		K_min = 0.0035f;
 
 		//風の強さ 1.25
-		g_experiment_power = glm::vec3(1.85f, 0.f, 0.f);//1.5
+		//g_experiment_power = glm::vec3(1.85f, 0.f, 0.f);//卒論-最終発表(1.85f)
 	}
 	//ウェーブヘア
 	else if (type == WAVY_STYLE) {
@@ -1191,11 +1199,12 @@ void ScenePBD::initMoreRod(char* filename,bool sag_free_flag ,int type) {
 		kbt = 50.f;
 		//質量
 		mass = 1.0e-1;
-		//LocalTorqueStepの調整パラメータ
+		//LocalTorqueStepの調整パラメータ(卒論)
 		K_min = 0.00175f;//0.0025
+		//中間発表用の動画
 
 		//風の強さ 1.25
-		g_experiment_power = glm::vec3(1.75f, 0.f, 0.f);
+		//g_experiment_power = glm::vec3(1.75f, 0.f, 0.f);
 	}
 	else {
 		std::cerr << "No HairStyle defined!!" << endl;
