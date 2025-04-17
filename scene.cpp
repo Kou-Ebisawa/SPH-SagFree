@@ -88,6 +88,9 @@ bool g_spacing_flag = false;
 //風を適用するかどうかのフラグ
 bool g_Apply_flag = false;
 
+//連番OBJを保存するかどうかのフラグ
+bool g_obj_Animation_flag = false;
+
 //実験時の風の強さの設定
 glm::vec3 g_experiment_power = glm::vec3(0.f);
 
@@ -243,7 +246,7 @@ void ScenePBD::Init(int argc, char* argv[])
 	//利用するファイルの指定
 	//char* filename = "Assets/1024-32/Curly(22).obj";
 	//テスト用
-	char* filename = "AssetsNotUsed/Test_Case_hair_1024.obj";
+	//char* filename = "AssetsNotUsed/Test_Case_hair_1024.obj";
 
 	//Bob
 	char* bob_filename = "Assets/LargeSize(1024-32)/Bob(24).obj";
@@ -264,7 +267,7 @@ void ScenePBD::Init(int argc, char* argv[])
 	//initCenterSpiralRod();
 	//initNaturalSpiralRod();
 	//initExampleRod();
-	initMoreRod(bob_filename, true, bob_type);//SagFreeがされない
+	initMoreRod(curl_filename, true, curl_type);//SagFreeがされない
 	//initMoreRod(wavy_filename, true, wavy_type);//SagFreeがされる
 }
 
@@ -346,6 +349,18 @@ void ScenePBD::Timer(void)
 	if (m_animation_on) {
 		// 描画を画像ファイルとして保存
 		if (m_simg_spacing > 0 && m_currentstep % m_simg_spacing == 0) savedisplay(-1);
+
+		//連番Objの保存
+		if (g_obj_Animation_flag) {
+			vector<glm::vec3> vrts(g_sim->GetNumParticles());
+			vector<int> fix_array(g_sim->GetNumParticles());
+			g_sim->GetArrayFromDevice(g_sim->P_POSITION, &vrts[0], g_sim->GetNumParticles());
+			g_sim->GetArrayFromDevice(g_sim->P_FIX, &fix_array[0], g_sim->GetNumParticles());
+
+			static int nsave = 1;
+			string filename = CreateFileName("../AnimationObj/hair_", ".obj", nsave++, 5);
+			SaveAnimationObj(filename, vrts, fix_array);
+		}
 
 
 		//時間計測---------------------------------------------------------
@@ -570,7 +585,6 @@ void ScenePBD::ImGui(GLFWwindow* window)
 			g_sim->m_wind_flag = false;
 		}
 	}
-
 	//画像を毎ステップ保存
 	if (ImGui::Checkbox("SaveAllStep", &g_spacing_flag)) {
 		if (g_spacing_flag) {
@@ -579,6 +593,10 @@ void ScenePBD::ImGui(GLFWwindow* window)
 		else {
 			m_simg_spacing = -1;
 		}
+	}
+	//Objを毎ステップ保存
+	if (ImGui::Checkbox("SaveAnimationObj", &g_obj_Animation_flag)) {
+
 	}
 
 	ImGui::Separator();
@@ -751,6 +769,40 @@ bool ScenePBD::MakeHairObjFile(const char* In_filename,const char* Out_filename)
 
 		f_out << buf << endl;
 	}
+}
+
+bool ScenePBD::SaveAnimationObj(string filename, const vector<glm::vec3>& vrts, const vector<int>& fix) {
+	ofstream file;
+
+	file.open(filename.c_str());
+	if (!file || !file.is_open() || file.bad() || file.fail()) {
+		cout << "rxOBJ::Save : Invalid file specified" << endl;
+		return false;
+	}
+
+	//頂点数
+	int nv = (int)vrts.size();
+	for (int i = 0; i < nv; i++) {
+		file << "v " << Vec3ToString(vrts[i]) << endl;
+	}
+
+	//インデックスの出力(頂点数と固定点の識別のサイズは同じことを前提)
+	int idx = 1;
+	for (int i = 0; i < nv-1; i++) {//最後の粒子での出力は不要
+		if (fix[i + 1] == 0) {
+			file << "l " << idx << " " << idx + 1 << endl;
+		}
+		else if(fix[i+1]==1){
+			//特に処理はない
+		}
+		else {
+			std::cerr << "fix data is incorrect!!" << endl;
+		}
+		idx++;
+	}
+
+	file.close();
+	return true;
 }
 
 //SPHの初期化

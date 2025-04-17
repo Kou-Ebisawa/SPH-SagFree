@@ -381,8 +381,6 @@ inline bool rxOBJ::HairObjSave(string file_name, const vector<glm::vec3>& vrts, 
 	return true;
 }
 
-
-
 /*!
 * 面を表す("f"から始まる)行から面情報を抽出
 * @param[in] buf 行文字列

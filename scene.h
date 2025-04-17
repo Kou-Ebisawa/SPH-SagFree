@@ -148,6 +148,8 @@ public:
 	static bool readObjFile(const char* filename, vector<glm::vec3>& PosArray, vector<glm::ivec2>& IndexArray, vector<int>& FixArray);
 	//髪型用のobjファイルに書き換え
 	static bool MakeHairObjFile(const char* In_filename,const char* Out_filename);
+	//連番Objファイル出力のための設定
+	static bool SaveAnimationObj(string filename, const vector<glm::vec3>& vrts, const vector<int>& fix);
 
 	static void initElasticFromObj(vector<glm::vec3>PosArray, vector<glm::ivec2>IndexArray, vector<int>FixArray, float ks, float kbt, float mass, int& num_elastic, int& all_particles, int type);
 

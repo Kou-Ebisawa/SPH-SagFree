@@ -1,4 +1,8 @@
 .vs/
 Release/
 Debug/
-bin/Assets/
+bin/Assets/Test_Case/Test_Case_hair.obj
+bin/Assets/LargeSize(1024-32)/Bob(24).obj
+bin/AssetsNotUsed/
+inc/glm/boost/
+inc/glm/wisps.obj
