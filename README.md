@@ -9,7 +9,7 @@
 現在、SPH法や髪型の挙動を求めるために、CUDAを用いたプログラムを取り入れています。そのため、CUDAのインストールとVisualStudioが必要です。CUDA11.8,VisualStudio2022で実行確認をしました。CUDAのバージョンは11.4~11.8なら実行可能だと考えていますが，確認はしていません。ビルドのカスタマイズ->ビルドの依存関係からCUDAのバージョンの設定が可能です。また、Release,x64でのみの動作確認となる。(Debugで実行をするとエラーが発生します．)VisualStudioで開発をしていますが、ソリューションファイルはSPH_SagFree.slnです。(後から変更しているため、わかりにくくてすみません。)
 
 ## 作品提出におけるobjファイルの不足について
-今回，髪型のobjファイルを利用していますが，これは一部のファイルは私の所属する研究室がある企業様から研究目的での利用を前提に頂いたものになります(プログラム内では，BobHairと記載．)．そのため，今回このファイルを含めて提出することができません．他の髪型ファイルは[先行研究4 Structure-Aware Hair Capture](https://gfx.cs.princeton.edu/pubs/Luo_2013_SHC/structure-hair.pdf)
+今回，髪型のobjファイルを利用していますが，これは一部のファイルは私の所属する研究室がある企業様から研究目的での利用を前提に頂いたものになります(プログラム内では，BobHairと記載．)．そのため，今回このファイルを含めることができません．他の髪型ファイルは[先行研究2 Structure-Aware Hair Capture](https://gfx.cs.princeton.edu/pubs/Luo_2013_SHC/structure-hair.pdf)
 (Linjie Luo, Hao Li and Szymon Rusinkiewicz
 ACM Transactions on Graphics (Proc. SIGGRAPH), 32(4), 2013 [プロジェクトページ](http://gfx.cs.princeton.edu/proj/trimesh2/))
 の髪型データを実験環境用に編集したものになります．
